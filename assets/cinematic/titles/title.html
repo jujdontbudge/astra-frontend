@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  :root{
+    --bg:#0a0a0b; --text:#f4f4f5; --muted:#8a8a92; --faint:#5a5a62;
+    --accent:#8b7cff; --accent-strong:#6d5efc;
+    --font:"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1920px;height:1080px;background:transparent;overflow:hidden}
+  body{font-family:var(--font);-webkit-font-smoothing:antialiased}
+  #stage{position:relative;width:1920px;height:1080px}
+
+  /* lower-left feature callout */
+  .callout{position:absolute;left:132px;bottom:150px;max-width:760px}
+  .callout .tick{width:46px;height:4px;border-radius:4px;background:var(--accent);
+    box-shadow:0 0 18px rgba(139,124,255,.7);margin-bottom:22px}
+  .callout .kicker{font-size:19px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:14px}
+  .callout .head{font-size:62px;font-weight:600;letter-spacing:-.02em;line-height:1.05;color:var(--text);
+    text-shadow:0 2px 30px rgba(0,0,0,.55)}
+  .callout .head .ac{color:var(--accent)}
+
+  /* centered wordmark / lockup */
+  .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .wordmark{font-size:132px;font-weight:600;letter-spacing:-.03em;color:var(--text);
+    text-shadow:0 0 60px rgba(139,124,255,.45),0 0 120px rgba(139,124,255,.25)}
+  .center .sub{margin-top:26px;font-size:27px;font-weight:500;letter-spacing:.06em;color:var(--muted)}
+
+  /* intro wordmark — lower third (kept clear of the bright orb core) */
+  .lower{position:absolute;left:0;right:0;bottom:128px;text-align:center}
+  .lower .wordmark{font-size:98px}
+  .lower .sub{margin-top:18px;font-size:24px;font-weight:600;letter-spacing:.26em;
+    text-transform:uppercase;color:var(--muted)}
+
+  /* outro lockup */
+  .lockup .wordmark{font-size:104px}
+  .lockup .divider{width:64px;height:3px;border-radius:3px;margin:34px auto 30px;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+  .lockup .tag{font-size:46px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+  .lockup .tag .ac{color:var(--accent)}
+  .lockup .subline{margin-top:20px;font-size:24px;font-weight:500;letter-spacing:.02em;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+  const specs = {
+    "callout-1":{type:"callout",kicker:"Scheduling",head:'Books your <span class="ac">meetings</span>.'},
+    "callout-2":{type:"callout",kicker:"Inbox",head:'Triages your <span class="ac">inbox</span>.'},
+    "callout-3":{type:"callout",kicker:"Email",head:'Drafts and <span class="ac">sends email</span>.'},
+    "callout-4":{type:"callout",kicker:"Built for business",head:'Ninety-five tools.<br>One <span class="ac">conversation</span>.'},
+    "wordmark":{type:"wordmark",sub:"Calendar · Email · Meetings"},
+    "lockup":{type:"lockup",tag:'Your day, <span class="ac">handled</span>.',subline:"Calendar, email, and meetings — in one conversation."},
+  };
+  const id = new URLSearchParams(location.search).get("id") || "wordmark";
+  const s = specs[id];
+  const stage = document.getElementById("stage");
+  if (s.type === "callout") {
+    stage.innerHTML =
+      '<div class="callout"><div class="tick"></div>' +
+      '<div class="kicker">'+s.kicker+'</div>' +
+      '<div class="head">'+s.head+'</div></div>';
+  } else if (s.type === "wordmark") {
+    stage.innerHTML =
+      '<div class="lower"><div class="wordmark">Astra</div>' +
+      '<div class="sub">'+s.sub+'</div></div>';
+  } else if (s.type === "lockup") {
+    stage.innerHTML =
+      '<div class="center lockup"><div class="wordmark">Astra</div>' +
+      '<div class="divider"></div>' +
+      '<div class="tag">'+s.tag+'</div>' +
+      '<div class="subline">'+s.subline+'</div></div>';
+  }
+  document.title = "ready";
+</script>
+</body>
+</html>
