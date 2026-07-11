@@ -178,7 +178,14 @@ export function Home({ disabled, onDisabledClick }) {
       variants={stagger}
       initial="hidden"
       animate="show"
-      exit={reduceAware(reduced, { opacity: 0, scale: 0.94 }, { opacity: 0 })}
+      exit={reduceAware(
+        reduced,
+        // AnimatePresence mode="wait" serializes this exit before the
+        // conversation can enter, so it must be fast — the soft spring took
+        // ~0.7s and made the first send feel sluggish.
+        { opacity: 0, scale: 0.97, transition: { duration: 0.14, ease: "easeIn" } },
+        { opacity: 0, transition: { duration: 0.08 } }
+      )}
       transition={springs.soft}
       data-testid="home-screen"
     >

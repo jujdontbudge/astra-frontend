@@ -5,7 +5,7 @@
 const ENDPOINT = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
 
-const SYSTEM = `You are Astra, an executive AI operator for RovaOS.
+const SYSTEM = `You are RovaOS, an executive AI operator.
 Be concise, concrete, and useful. Use Markdown: short paragraphs, bullet lists, and tables when they clarify calendar, email, meeting, or operations work. Do not use emoji.`;
 
 function toApiMessages(history, limit = 20) {
@@ -15,12 +15,41 @@ function toApiMessages(history, limit = 20) {
     .map((m) => ({ role: m.role, content: m.text.trim() }));
 }
 
-export async function callAnthropic({ apiKey, model, mode, history, onEvent, signal }) {
+export async function callAnthropic({ apiKey, model, mode, history, onEvent, signal, idleTimeoutMs = 120_000 }) {
   onEvent({ type: "status", value: "thinking" });
 
   const system =
     SYSTEM + (mode === "Ask" ? "\nThe user is in Ask mode: explain and advise; do not pretend to edit files." : "");
 
+  // A stalled response body never rejects on its own, which would pin the
+  // message at "working" forever. Abort after sustained silence; every chunk
+  // that arrives re-arms the watchdog.
+  const watchdog = new AbortController();
+  let idleTimer = 0;
+  let timedOut = false;
+  const armIdleTimer = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      timedOut = true;
+      watchdog.abort();
+    }, idleTimeoutMs);
+  };
+  const onCallerAbort = () => watchdog.abort();
+  signal?.addEventListener?.("abort", onCallerAbort, { once: true });
+  armIdleTimer();
+
+  try {
+    return await streamAnthropic({ apiKey, model, system, history, onEvent, signal: watchdog.signal, armIdleTimer });
+  } catch (error) {
+    if (timedOut) throw new Error("Anthropic stopped responding. Check your connection and try again.");
+    throw error;
+  } finally {
+    clearTimeout(idleTimer);
+    signal?.removeEventListener?.("abort", onCallerAbort);
+  }
+}
+
+async function streamAnthropic({ apiKey, model, system, history, onEvent, signal, armIdleTimer }) {
   const res = await fetch(ENDPOINT, {
     method: "POST",
     signal,
@@ -57,6 +86,7 @@ export async function callAnthropic({ apiKey, model, mode, history, onEvent, sig
 
   while (true) {
     const { value, done } = await reader.read();
+    armIdleTimer();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");

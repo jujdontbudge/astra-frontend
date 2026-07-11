@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertTriangle,
@@ -9,10 +9,14 @@ import {
   Loader2,
   Mail,
   MapPin,
+  ShieldAlert,
   Users,
+  X,
 } from "lucide-react";
+import { useChatActions } from "../context/ChatContext.jsx";
+import { approvalExpiryLabel, approvalExpiryMs } from "../lib/approval.js";
 import { fadeUp, premiumCard, reduceAware, springs, stagger } from "../lib/motion.js";
-import { formatDateRange, humanizeTool, isFailure, summarizeResult } from "../lib/tooling.js";
+import { formatDateRange, humanizeTool, isFailure, safeErrorMessage, summarizeResult } from "../lib/tooling.js";
 import { clampText, cn } from "../lib/utils.js";
 import { useReducedMotionPreference } from "../lib/useReducedMotionPreference.js";
 
@@ -210,15 +214,30 @@ export function EmailCard({ block }) {
 
 export function ToolChip({ block }) {
   const [open, setOpen] = useState(false);
+  const detailId = useId();
+  const reduced = useReducedMotionPreference();
   const running = block.status === "running";
-  const error = block.status === "error" || block.result?.error;
+  const error = Boolean(block.status === "error" || block.result?.error);
   const title = humanizeTool(block.tool);
-  const summary = error ? block.result?.error || "Needs attention" : running ? "working..." : summarizeResult(block.result);
+  const resultSummary = summarizeResult(block.result);
+  const summary = error
+    ? block.result?.error || "No confirmed result"
+    : running
+      ? "Running"
+      : `Result received · ${resultSummary}`;
+  const announcement = error
+    ? `${title} failed: ${summary}`
+    : running
+      ? `${title} is running.`
+      : `${title}: result received. ${resultSummary}`;
 
   return (
     <motion.div className={cn("tool-chip", running && "running", error && "error")} layout initial="hidden" animate="show" variants={fadeUp} transition={springs.soft} data-testid="tool-chip">
+      <span className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </span>
       {running && <span className="tool-live-line" aria-hidden="true" />}
-      <button className="tool-chip-row" type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+      <button className="tool-chip-row" type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls={detailId}>
         <span className="tool-state" aria-hidden="true">
           {running ? <Loader2 className="spin" /> : error ? <AlertTriangle /> : <Check />}
         </span>
@@ -233,11 +252,12 @@ export function ToolChip({ block }) {
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
+            id={detailId}
             className="tool-chip-detail"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: reduced ? 0.08 : 0.38, ease: [0.16, 1, 0.3, 1] }}
           >
             <div>
               <span>Input</span>
@@ -264,7 +284,172 @@ export function ErrorNote({ message }) {
   );
 }
 
-export function ActionBlock({ block }) {
+const APPROVAL_BUSY = new Set(["approving", "cancelling", "approved", "executing"]);
+
+// Screen readers only announce live-region MUTATIONS, so a region that mounts
+// with its text already present is routinely skipped. Mount empty, fill in an
+// effect, and use assertive for the initial pending state — it gates the agent.
+function ApprovalAnnouncement({ label, detail, assertive }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setText(`${label}. ${detail}`), 30);
+    return () => window.clearTimeout(timer);
+  }, [label, detail]);
+  return (
+    <p className="sr-only" role={assertive ? "alert" : "status"} aria-live={assertive ? "assertive" : "polite"}>
+      {text}
+    </p>
+  );
+}
+
+function approvalStatusCopy(status, expired) {
+  if (expired && status === "pending") return { label: "Expired", detail: "This request expired without running." };
+  switch (status) {
+    case "approving":
+      return { label: "Submitting approval", detail: "The one-time approval is being submitted." };
+    case "cancelling":
+      return { label: "Cancelling", detail: "The cancellation is being submitted." };
+    case "approved":
+      return { label: "Approved", detail: "RovaOS is claiming the approved action." };
+    case "executing":
+      return { label: "Running approved action", detail: "The connected service is processing the action." };
+    case "succeeded":
+      return { label: "Action completed", detail: "The connected service returned a successful result." };
+    case "cancelled":
+      return { label: "Action cancelled", detail: "The action did not run." };
+    case "expired":
+      return { label: "Expired", detail: "This request expired without running." };
+    case "unavailable":
+      return { label: "Approval unavailable", detail: "Request the action again to receive a new approval." };
+    case "failed":
+      return { label: "Action failed", detail: "The connected action was not confirmed as successful." };
+    default:
+      return { label: "Approval required", detail: "Nothing will run until you choose Approve." };
+  }
+}
+
+export function ApprovalCard({ block, messageId }) {
+  const { decideApproval } = useChatActions();
+  const reduced = useReducedMotionPreference();
+  const detailId = useId();
+  const titleId = useId();
+  const [reviewOpen, setReviewOpen] = useState(true);
+  const [clock, setClock] = useState(() => Date.now());
+  const approval = block.approval || {};
+  const expiry = approvalExpiryMs(approval.expiresAt);
+  const expired = Boolean(expiry && clock >= expiry);
+  const status = approval.status || "pending";
+  const pending = status === "pending" && !expired;
+  const busy = APPROVAL_BUSY.has(status);
+  const statusCopy = approvalStatusCopy(status, expired);
+  const exactInput = JSON.stringify(block.input || {}, null, 2);
+  const exactResult = block.result == null ? null : JSON.stringify(block.result, null, 2);
+  const approvalError = approval.error ? safeErrorMessage(approval.error) : null;
+
+  useEffect(() => {
+    if (!expiry || status !== "pending" || expiry <= Date.now()) return undefined;
+    const timer = window.setTimeout(() => setClock(Date.now()), Math.min(expiry - Date.now() + 25, 2_147_000_000));
+    return () => window.clearTimeout(timer);
+  }, [expiry, status]);
+
+  return (
+    <motion.article
+      className={cn("approval-card", `is-${status}`, expired && "is-expired")}
+      variants={premiumCard}
+      initial="hidden"
+      animate="show"
+      transition={reduceAware(reduced, springs.grand, { duration: 0.16 })}
+      role="group"
+      aria-labelledby={titleId}
+      data-testid="approval-card"
+      data-approval-status={expired && status === "pending" ? "expired" : status}
+    >
+      <div className="approval-head">
+        <span className="approval-icon" aria-hidden="true">
+          {status === "succeeded" ? <Check /> : status === "cancelled" ? <X /> : busy ? <Loader2 className="spin" /> : <ShieldAlert />}
+        </span>
+        <div>
+          <span className="approval-kicker">{statusCopy.label}</span>
+          <h3 id={titleId}>{humanizeTool(block.tool)}</h3>
+        </div>
+      </div>
+
+      <p className="approval-effect" data-testid="approval-effect">
+        <strong>Connected change:</strong> {approval.effect}
+      </p>
+      {(status === "pending" || busy) && <p className="approval-message">{approval.message}</p>}
+      <div className="approval-expiry">
+        <Clock aria-hidden="true" />
+        <span>Expires {approvalExpiryLabel(approval.expiresAt)}</span>
+      </div>
+
+      <button
+        className="approval-review"
+        type="button"
+        onClick={() => setReviewOpen((open) => !open)}
+        aria-expanded={reviewOpen}
+        aria-controls={detailId}
+      >
+        <span>Review exact arguments</span>
+        <motion.span animate={{ rotate: reviewOpen ? 180 : 0 }} transition={springs.quick}>
+          <ChevronDown aria-hidden="true" />
+        </motion.span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {reviewOpen && (
+          <motion.div
+            className="approval-review-detail"
+            id={detailId}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: reduced ? 0.08 : 0.28 }}
+          >
+            <span>Arguments sent if approved</span>
+            <pre data-testid="approval-arguments">{exactInput}</pre>
+            {exactResult && !["pending", "approving", "cancelling", "approved", "executing"].includes(status) && (
+              <>
+                <span>Result</span>
+                <pre data-testid="approval-result">{exactResult}</pre>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {approvalError && <p className="approval-error">{approvalError}</p>}
+      <ApprovalAnnouncement label={statusCopy.label} detail={statusCopy.detail} assertive={pending} />
+
+      <div className="approval-actions">
+        <button
+          className="approval-cancel"
+          type="button"
+          disabled={!pending}
+          onClick={() => decideApproval(messageId, block.id, "cancel")}
+          aria-label="Cancel action"
+        >
+          <X aria-hidden="true" />
+          Cancel
+        </button>
+        <button
+          className="approval-approve"
+          type="button"
+          disabled={!pending}
+          onClick={() => decideApproval(messageId, block.id, "approve")}
+          aria-label="Approve action"
+        >
+          {busy ? <Loader2 className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+          Approve
+        </button>
+      </div>
+      <p className="approval-state-copy">{statusCopy.detail}</p>
+    </motion.article>
+  );
+}
+
+export function ActionBlock({ block, messageId }) {
+  if (block.approval) return <ApprovalCard block={block} messageId={messageId} />;
   if (block.kind === "calendar") {
     if (block.status === "running") return null;
     return <CalendarCard block={block} />;

@@ -7,20 +7,20 @@ export function classifyTool(tool) {
 }
 
 const TOOL_TITLES = {
-  search_emails: "Searched inbox",
-  list_recent_emails: "Listed email",
-  read_email: "Read an email",
-  list_upcoming_events: "Checked calendar",
-  check_availability: "Checked availability",
-  set_reminder: "Set a reminder",
-  list_reminders: "Listed reminders",
-  create_draft_email: "Drafted an email",
-  reply_to_email: "Replied",
-  forward_email: "Forwarded an email",
-  send_teams_message: "Sent a Teams message",
-  web_search: "Searched the web",
-  run_morning_digest: "Ran morning briefing",
-  run_eod_digest: "Ran end-of-day digest",
+  search_emails: "Search inbox",
+  list_recent_emails: "List recent email",
+  read_email: "Read email",
+  list_upcoming_events: "Check calendar",
+  check_availability: "Check availability",
+  set_reminder: "Set reminder",
+  list_reminders: "List reminders",
+  create_draft_email: "Draft email",
+  reply_to_email: "Reply to email",
+  forward_email: "Forward email",
+  send_teams_message: "Send Teams message",
+  web_search: "Search the web",
+  run_morning_digest: "Run morning briefing",
+  run_eod_digest: "Run end-of-day digest",
 };
 
 export function humanizeTool(tool = "") {
@@ -39,22 +39,48 @@ function firstArray(result) {
 }
 
 export function summarizeResult(result) {
-  if (!result) return "working...";
+  if (!result) return "No result details";
   if (typeof result === "string") return result;
   const arr = firstArray(result);
   if (arr) return `${arr.value.length} ${arr.value.length === 1 ? "result" : "results"}`;
   if (result.status) return String(result.status).replace(/[_-]+/g, " ");
-  for (const value of Object.values(result)) {
-    if (["string", "number", "boolean"].includes(typeof value)) return String(value);
+  if (result.isError === false || result.ok === true || result.success === true) return "Completed";
+  for (const [key, value] of Object.entries(result)) {
+    if (["isError", "ok", "success", "partial"].includes(key) || typeof value === "boolean") continue;
+    if (["string", "number"].includes(typeof value)) return String(value);
   }
-  return "done";
+  return "Completed";
 }
 
 export function isFailure(result, expectedStatus) {
-  if (!result) return false;
+  if (!result || (typeof result === "object" && !Array.isArray(result) && Object.keys(result).length === 0)) return true;
   if (result.error || result.ok === false) return true;
-  if (expectedStatus && result.status && result.status !== expectedStatus) return true;
+  const status = typeof result.status === "string" ? result.status.toLowerCase().replace(/[\s-]+/g, "_") : "";
+  if (["error", "failed", "failure", "cancelled", "canceled", "rejected", "denied"].includes(status)) return true;
+  if (expectedStatus) {
+    const expected = expectedStatus.toLowerCase().replace(/[\s-]+/g, "_");
+    if (status) return status !== expected;
+    const hasConnectorEvidence =
+      expected === "created"
+        ? Boolean(result.event_id || result.eventId || result.id || result.webLink)
+        : expected === "sent"
+          ? Boolean(result.message_id || result.messageId || result.id)
+          : false;
+    return !hasConnectorEvidence;
+  }
   return false;
+}
+
+export function safeErrorMessage(value, fallback = "The connected action failed.") {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (value && typeof value === "object") {
+    for (const key of ["message", "detail", "error", "code"]) {
+      if (!Object.hasOwn(value, key)) continue;
+      const message = safeErrorMessage(value[key], "");
+      if (message) return message;
+    }
+  }
+  return fallback;
 }
 
 export function formatDateRange(start, end) {
@@ -83,7 +109,7 @@ export const sampleEmailInput = {
   to: ["ben@rova.ai", "maya@rova.ai", "ops@rova.ai"],
   cc: ["rohan@rova.ai"],
   subject: "Q3 planning sync confirmed",
-  body: "Hi Ben, I booked the Q3 planning sync for Wednesday afternoon and included the agenda notes from this morning's briefing. Astra will keep an eye on follow-ups.",
+  body: "Hi Ben, I booked the Q3 planning sync for Wednesday afternoon and included the agenda notes from this morning's briefing. RovaOS will keep an eye on follow-ups.",
   importance: "normal",
 };
 

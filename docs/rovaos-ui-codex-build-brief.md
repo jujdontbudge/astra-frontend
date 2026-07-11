@@ -1,6 +1,6 @@
-# Astra UI — Codex Build Brief (Design, Motion & Behavior)
+# RovaOS UI — Codex Build Brief (Design, Motion & Behavior)
 
-**Audience:** Codex (the implementing agent) · **Companion:** [`astra-redesign-prd.md`](astra-redesign-prd.md) · **Date:** 2026-06-18
+**Audience:** Codex (the implementing agent) · **Companion:** [`rovaos-redesign-prd.md`](rovaos-redesign-prd.md) · **Date:** 2026-06-18
 
 This brief describes — in depth and in plain language — **what to build, how every piece should look and move, and exactly how every piece must behave.** It deliberately avoids exact pixel sizes, spacing values, and animation timings: you derive those by **matching the attached reference photos** and using good taste. Where behavior, wiring, or data flow is described, follow it **precisely** — that's what makes the app actually work, not just look nice.
 
@@ -8,7 +8,7 @@ This brief describes — in depth and in plain language — **what to build, how
 
 ## 0. Read this first — how to use this brief
 
-**What you are building.** A complete, working web app called **Astra** — an executive AI operator chat interface for "RovaOS". It is a single dark, premium, minimal surface. The look and motion are modeled on the attached reference (a polished dark AI app called "Aura AI"), but the **content is Astra's domain**: calendar, email, meetings, and operations — never crypto. The headline feature is **animated confirmation cards** that appear when Astra books a meeting or sends an email.
+**What you are building.** A complete, working web app called **RovaOS** — an executive AI operator chat interface. It is a single dark, premium, minimal surface. The look and motion are modeled on the attached reference (a polished dark AI app called "Aura AI"), but the **content is RovaOS's domain**: calendar, email, meetings, and operations — never crypto. The headline feature is **animated confirmation cards** that appear when RovaOS books a meeting or sends an email.
 
 **Two non-negotiable rules.**
 1. **It must look and move like the reference photos** in `docs/assets/` — the same calm, dark, spacious, cinematic feel; the same layout rhythm; the same quality of motion.
@@ -56,7 +56,7 @@ These few dependencies earn their place for *this* build. **Add nothing else unl
 
 ## 1. Reference imagery (attached — study these)
 
-> The reference app is a crypto product. **Copy the aesthetic, the layout rhythm, and the motion quality. Do not copy its content.** Astra shows calendar/email/ops, not coins. Wherever the reference shows a coin list or a price chart, picture an Astra equivalent (a meeting card, an email confirmation, a tool chip) in the same visual language.
+> The reference app is a crypto product. **Copy the aesthetic, the layout rhythm, and the motion quality. Do not copy its content.** RovaOS shows calendar/email/ops, not coins. Wherever the reference shows a coin list or a price chart, picture an RovaOS equivalent (a meeting card, an email confirmation, a tool chip) in the same visual language.
 
 **1.1 — Home / empty state.** The screen you land on with no conversation yet.
 ![Reference: home / empty state](assets/ref-1-home.png)
@@ -76,7 +76,7 @@ Take from this: the **user's message** sits as a small bubble aligned to the rig
 
 **1.5 — The quality bar for inline components.** The assistant can render fully-realized interactive widgets.
 ![Reference: rich interactive inline widget](assets/ref-5-rich-inline-widget.png)
-Take from this: the **polish ceiling** for Astra's inline cards. Astra's `CalendarCard`, `EmailCard`, and `ToolChip` should feel this considered — clean headers, tidy rows, soft separators, gentle internal motion — but in Astra's domain.
+Take from this: the **polish ceiling** for RovaOS's inline cards. RovaOS's `CalendarCard`, `EmailCard`, and `ToolChip` should feel this considered — clean headers, tidy rows, soft separators, gentle internal motion — but in RovaOS's domain.
 
 ---
 
@@ -119,7 +119,7 @@ For each component below: **what it is**, **how it looks** (descriptive), **its 
 
 ### 4.2 Icon rail (left edge)
 - **What it is:** a permanent, narrow vertical strip of icon buttons — the primary navigation. (Reference 1.1, far left.)
-- **Look:** thin, dark, quiet. At the **top**, a small rounded **app glyph** ("A" / Astra mark, with the violet→indigo tint) and a little chevron beside/under it that hints "expand." Below, a column of monochrome line icons with comfortable spacing. One icon pinned at the **bottom**.
+- **Look:** thin, dark, quiet. At the **top**, a small rounded **app glyph** ("A" / RovaOS mark, with the violet→indigo tint) and a little chevron beside/under it that hints "expand." Below, a column of monochrome line icons with comfortable spacing. One icon pinned at the **bottom**.
 - **Anatomy & what each does (wire all of these):**
   - **App glyph + chevron → expand/collapse the sidebar** (§4.3). Clicking toggles the full sidebar open/closed. This is the primary expand control.
   - **New chat** (plus icon) → starts a fresh, empty conversation: clears the active conversation selection so the Home screen shows, ready for a new first message. Does **not** delete anything.
@@ -132,7 +132,7 @@ For each component below: **what it is**, **how it looks** (descriptive), **its 
 
 ### 4.3 Expandable sidebar
 - **What it is:** the full navigation panel that slides out from the rail — conversation history, search, and the account row. (See the old concept's left panel for the *content*; render it in the new dark theme.)
-- **Look:** a charcoal panel, hairline border on its right edge, sitting beside/over the rail. Header shows the **Astra wordmark** and a collapse control. Below: a prominent **"New chat"** button, a **search field**, then the **scrollable list of conversations**, and an **account row** pinned at the bottom.
+- **Look:** a charcoal panel, hairline border on its right edge, sitting beside/over the rail. Header shows the **RovaOS wordmark** and a collapse control. Below: a prominent **"New chat"** button, a **search field**, then the **scrollable list of conversations**, and an **account row** pinned at the bottom.
 - **Anatomy & what each does:**
   - **New chat button** → same as rail "New chat": go to a fresh Home/empty conversation.
   - **Search field** → filters the conversation list live as you type (case-insensitive match on titles). Empty query shows all. No results shows a quiet "No matches".
@@ -149,8 +149,8 @@ For each component below: **what it is**, **how it looks** (descriptive), **its 
 - **Motion:** on Home appearing, the greeting **fades up** gently, a beat before the composer and chips (a soft staggered entrance for the whole Home cluster).
 
 ### 4.5 Composer (the input) — used on Home and docked in Conversation
-- **What it is:** the text box where the user talks to Astra. The **same component** is centered & larger on Home, and docked at the bottom in Conversation. (Reference 1.1/1.2 for Home; 1.4 for docked.)
-- **Look:** a wide, softly-rounded, lifted charcoal box with a hairline border and a faint inner glow on focus (violet). Placeholder reads **"Ask Astra anything…"** in muted text, with a violet text caret. Inside the box, a small control cluster: a **"+" attach** button (and optionally a small mode pill like the reference's "Legacy mode ▾"), and at the bottom-right an affordance that is a **voice/idle glyph when empty** and becomes a **filled circular Send button (up-arrow)** once there's text (Reference 1.2).
+- **What it is:** the text box where the user talks to RovaOS. The **same component** is centered & larger on Home, and docked at the bottom in Conversation. (Reference 1.1/1.2 for Home; 1.4 for docked.)
+- **Look:** a wide, softly-rounded, lifted charcoal box with a hairline border and a faint inner glow on focus (violet). Placeholder reads **"Ask RovaOS anything…"** in muted text, with a violet text caret. Inside the box, a small control cluster: a **"+" attach** button (and optionally a small mode pill like the reference's "Legacy mode ▾"), and at the bottom-right an affordance that is a **voice/idle glyph when empty** and becomes a **filled circular Send button (up-arrow)** once there's text (Reference 1.2).
 - **Anatomy & what each does (wire precisely):**
   - **Text area** → the user types here. It **auto-grows** with the content up to a sensible max height, then scrolls internally. It must feel instant.
   - **Enter** → sends the message. **Shift+Enter** → inserts a newline (does not send). Sending clears the box and resets its height.
@@ -163,12 +163,12 @@ For each component below: **what it is**, **how it looks** (descriptive), **its 
 ### 4.6 Suggestion chips
 - **What they are:** a row of tappable prompt suggestions under the composer on Home. (Reference 1.1/1.4, the small pills with a tiny leading icon.)
 - **Look:** small, quiet pills with a hairline border and a tiny leading line-icon; muted text. They wrap to a second centered row if needed, like the reference.
-- **Content (Astra prompts, no emoji):** "What's on my calendar today?", "Triage my unread inbox", "Schedule a meeting", "Run my morning briefing". (These are sensible defaults; keep them editable in one place in code.)
+- **Content (RovaOS prompts, no emoji):** "What's on my calendar today?", "Triage my unread inbox", "Schedule a meeting", "Run my morning briefing". (These are sensible defaults; keep them editable in one place in code.)
 - **What they do:** clicking a chip **sends that exact prompt** as a message (triggering the Home→Conversation transition).
 - **Motion:** chips **stagger in** after the hero; hover lifts the border and nudges the chip slightly.
 
 ### 4.7 Home cards — "your day" row
-- **What it is:** the bottom row of cards on Home. In the reference these are live crypto tickers; **for Astra they are your day at a glance.** (Reference 1.1, bottom row.)
+- **What it is:** the bottom row of cards on Home. In the reference these are live crypto tickers; **for RovaOS they are your day at a glance.** (Reference 1.1, bottom row.)
 - **Look:** a horizontal row of softly-bordered charcoal cards, each with a small icon/label, a primary value, and a hint of supporting detail — same visual rhythm as the reference's coin cards (icon on top, label, value, a small lower detail), minus the sparkline unless you have data for one.
 - **Behavior (hybrid — implement both paths):**
   - On Home mount, request the day summary from the backend (`GET /api/home`, see PRD §7). Show a brief **skeleton shimmer** while loading.
@@ -189,7 +189,7 @@ For each component below: **what it is**, **how it looks** (descriptive), **its 
 - **Motion:** appears with a gentle fade/slide-up.
 
 ### 4.10 Assistant message + action toolbar
-- **What it is:** Astra's reply. It is a **left-aligned, avatar-less** flow that can contain: tool activity (chips/cards, §4.12–4.14), then the final answer text (clean, readable markdown — bold, lists, code, links; rendered safely, never via raw HTML injection), and a **message action toolbar** beneath it. (Reference 1.4/1.5 show the toolbar of small icons under the answer.)
+- **What it is:** RovaOS's reply. It is a **left-aligned, avatar-less** flow that can contain: tool activity (chips/cards, §4.12–4.14), then the final answer text (clean, readable markdown — bold, lists, code, links; rendered safely, never via raw HTML injection), and a **message action toolbar** beneath it. (Reference 1.4/1.5 show the toolbar of small icons under the answer.)
 - **Action toolbar — wire these (functional):**
   - **Copy** → copies the answer's text to the clipboard (show a brief "Copied" affordance).
   - **Retry / regenerate** → re-sends the preceding user message to produce a new answer.
@@ -200,7 +200,7 @@ For each component below: **what it is**, **how it looks** (descriptive), **its 
 - **Motion:** the typing indicator gives way to streaming text; toolbar buttons have hover/press feedback; any inline cards animate per §5.
 
 ### 4.11 Thinking / typing indicator
-- **Look:** a small, calm animated indicator (e.g., three soft pulsing dots) shown while Astra is working and has not yet produced text or a card.
+- **Look:** a small, calm animated indicator (e.g., three soft pulsing dots) shown while RovaOS is working and has not yet produced text or a card.
 - **Motion:** a gentle, looping pulse; it disappears the moment real content arrives.
 
 ### 4.12 Generic tool chip (for all ~93 non-hero tools)
@@ -213,14 +213,14 @@ For each component below: **what it is**, **how it looks** (descriptive), **its 
 - **Motion:** spinner while running; on completion the dot settles; expand/collapse animates the height smoothly with the chevron rotating.
 
 ### 4.13 CalendarCard (HERO — `create_calendar_event`)
-- **What it is:** the celebratory confirmation that Astra **booked a meeting / added an event**. This is one of the two headline components. It renders **once the action is confirmed** (the tool result has arrived). (Quality bar: Reference 1.5.)
+- **What it is:** the celebratory confirmation that RovaOS **booked a meeting / added an event**. This is one of the two headline components. It renders **once the action is confirmed** (the tool result has arrived). (Quality bar: Reference 1.5.)
 - **Look:** a refined card with a clear header — a small **date tile** (month + day), the title ("Meeting booked" when there are attendees or it's an online meeting; "Event added" otherwise), and a **drawn checkmark** that signs off success. Below: the **when** (day, time range, duration), the **where** (location or an "online/Teams" badge when it's a virtual meeting), and — **only if there are attendees** — a compact **attendee row** (small avatars/initials + names). Calm, tidy, premium.
 - **Data:** the rich content (subject, start/end, attendees, online?) comes from the tool **call input**; the success/confirmation (it really happened, the event id) comes from the tool **result**. (Exact shapes in PRD §11.) Render the attendee row **only when attendees exist** — this single card serves both "meeting" and "event".
 - **States:** **success** (the normal animated confirmation) and **error** (if the result indicates failure: a restrained danger treatment, "Couldn't book — <reason>", no celebratory checkmark).
 - **Motion (see §5 for the full choreography):** the card **arrives with a soft spring and a gentle accent glow**, the **checkmark draws itself on**, the detail rows **cascade in**, and a **signature touch**: the date tile **fills in**. Plays **once** on appearance.
 
 ### 4.14 EmailCard (HERO — `send_email`)
-- **What it is:** the confirmation that Astra **sent an email**. The second headline component. Renders once the send is confirmed.
+- **What it is:** the confirmation that RovaOS **sent an email**. The second headline component. Renders once the send is confirmed.
 - **Look:** a refined card with an **envelope/mail glyph**, the title "Email sent", and a **drawn checkmark**. Below: **To** (recipients, collapsing extras into "+N"), the **subject**, a **1–2 line preview** of the body, and a small **importance** tag only when it's high/low.
 - **Data:** content (to, subject, body, cc, importance) from the call input; "sent" confirmation from the result. (PRD §11.)
 - **States:** success and error (mirror CalendarCard's error treatment: "Couldn't send — <reason>", no checkmark).
@@ -236,7 +236,7 @@ For each component below: **what it is**, **how it looks** (descriptive), **its 
 - **What it is:** a centered modal for configuration. (Functionally similar to the current app's settings; restyle to the dark theme.)
 - **Look:** a centered dark panel over a dimming scrim, hairline border, a header with a title and a close (×).
 - **Contents & what each does (wire precisely):**
-  - **Connection toggle:** "Local RovaOS" vs "Anthropic key" — switches which backend Astra talks to.
+  - **Connection toggle:** "Local RovaOS" vs "Anthropic key" — switches which backend RovaOS talks to.
   - **Backend URL** (RovaOS mode): a text field for the server URL with a **"Test"** button that pings the backend health endpoint and shows a clear OK/❌-with-reason note (no emoji — use words/icons).
   - **Anthropic API key** field (with show/hide eye toggle): stored only in the browser. *(Note: you, Codex, never need a real key to build or to run the gallery; the user supplies it at runtime.)*
   - **Model** select (Anthropic mode).
@@ -255,7 +255,7 @@ For each component below: **what it is**, **how it looks** (descriptive), **its 
 
 ## 5. Motion language (the headline) — described, not numbered
 
-Motion is what makes Astra feel premium. Build it with Framer Motion. **Tune everything by eye against the reference until it feels smooth, soft, and intentional.** Numbers are yours to choose; the *feeling* is specified.
+Motion is what makes RovaOS feel premium. Build it with Framer Motion. **Tune everything by eye against the reference until it feels smooth, soft, and intentional.** Numbers are yours to choose; the *feeling* is specified.
 
 **5.0 Global principles.**
 - Prefer **spring-based** motion with a soft landing (a hint of overshoot, then settle) over linear/abrupt tweens.
@@ -267,11 +267,11 @@ Motion is what makes Astra feel premium. Build it with Framer Motion. **Tune eve
 
 **5.2 Home → Conversation transition (signature).** On the first send, the Home cluster **scales/recedes with a soft fade** (a cinematic push, faint perspective, like the reference) while the Conversation surface comes forward and the composer **glides from center to docked-bottom**. Quick, smooth, one continuous feeling — not a hard cut. Returning to Home (New chat) eases back in.
 
-**5.3 Streaming a reply.** The typing indicator pulses while Astra thinks; when text starts, it **appends smoothly** (no layout jank as it grows); tool chips/cards appear in order as their events arrive; the view keeps the newest content in view (smart auto-scroll, §4.8).
+**5.3 Streaming a reply.** The typing indicator pulses while RovaOS thinks; when text starts, it **appends smoothly** (no layout jank as it grows); tool chips/cards appear in order as their events arrive; the view keeps the newest content in view (smart auto-scroll, §4.8).
 
 **5.4 Hero card choreography (CalendarCard & EmailCard).** When a hero card appears (on confirmation), play this sequence **once**, smoothly:
 1. **Arrival:** the card eases in with a soft spring (a small scale-up + lift) and a brief, gentle **accent glow** that blooms and settles.
-2. **Checkmark draws on:** the success check **strokes itself in** (an SVG path that draws), as if Astra is signing off the action. (Under reduced motion, the check simply appears.)
+2. **Checkmark draws on:** the success check **strokes itself in** (an SVG path that draws), as if RovaOS is signing off the action. (Under reduced motion, the check simply appears.)
 3. **Details cascade:** the rows (when/where/attendees, or to/subject/preview) **fade up in a quick stagger**, one after another.
 4. **Signature touch (one per type):**
    - **EmailCard:** a thin accent **"seal/send" sweep** glides once across the top edge — the feeling of an envelope being sealed and sent.
@@ -305,7 +305,7 @@ Every interactive element and exactly what it must do. **If you render it, it mu
 
 | Element | Action when used |
 |---|---|
-| Composer text area | Type freely; auto-grows with content; placeholder "Ask Astra anything…" |
+| Composer text area | Type freely; auto-grows with content; placeholder "Ask RovaOS anything…" |
 | Enter | Send the message |
 | Shift+Enter | Newline (do not send) |
 | Send button | Send (only enabled with text + ready + not streaming) |
@@ -380,7 +380,7 @@ This is the wiring that makes the UI a real product. Follow it; exact protocol/s
 - **Looks like the photos** (§1–§2): dark calm canvas, slim rail, thin centered hero, composer with Send-on-type, chips, "your day" cards, right-aligned user bubble, rich left-aligned assistant content + action toolbar, docked composer, the zoom transition, one sparing violet accent, **no emoji**.
 - **Everything in §6 works** — every row of the functional catalog; New chat truly starts fresh; reload restores state and never crashes on blocked storage.
 - **Motion is present & smooth** (§5) — home stagger, send transition, streaming + smart auto-scroll, the full hero-card choreography (verify in `?gallery`), the §5.6 micro-interactions, and **reduced-motion degrades to clean fades**.
-- Astra still talks to RovaOS over the unchanged protocol (and BYOK still works); `npm run build` is clean.
+- The RovaOS frontend still talks to its backend over the unchanged protocol (and BYOK still works); `npm run build` is clean.
 
 **Verify every one of these by actually using the app in a browser — the full end-to-end test plan is §9. Keep iterating until all of it passes — don't stop early.**
 
@@ -388,7 +388,7 @@ This is the wiring that makes the UI a real product. Follow it; exact protocol/s
 
 ## 9. End-to-end browser testing — simulate real use, test *everything*
 
-**Mandate.** Before any of this is "done," you must **drive the running app in a real browser and actually use it** — dispatch real clicks, real keystrokes, real typing; take screenshots; read the console. Not jsdom unit tests, not "it compiles," not one static screenshot. Simulate a real person using Astra end to end, and confirm with your own eyes (screenshots) and assertions that **every** behavior in §6, **every** animation in §5, and **every** screen in §1–§2 actually happens. When a step fails, fix the source and re-run. **Nothing is done until every scenario below passes in the browser.**
+**Mandate.** Before any of this is "done," you must **drive the running app in a real browser and actually use it** — dispatch real clicks, real keystrokes, real typing; take screenshots; read the console. Not jsdom unit tests, not "it compiles," not one static screenshot. Simulate a real person using RovaOS end to end, and confirm with your own eyes (screenshots) and assertions that **every** behavior in §6, **every** animation in §5, and **every** screen in §1–§2 actually happens. When a step fails, fix the source and re-run. **Nothing is done until every scenario below passes in the browser.**
 
 **How.** Use your runtime's browser driver — a preview/browser MCP (start dev server, click, fill, eval, screenshot, console logs, resize) if you have one, otherwise **Playwright** (headless Chromium) with a script that navigates, clicks by selector, types, waits, screenshots, and asserts. Run the suite at a **wide desktop width and a narrow phone-ish width**. After each scenario, **check the console** (zero errors) and **screenshot** to compare against the reference frames in `docs/assets/`.
 

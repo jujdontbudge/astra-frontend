@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { safeJSONParse, safeStorageGet, safeStorageSet } from "../lib/utils.js";
 
-const STORAGE_KEY = "astra.settings.v2";
+const STORAGE_KEY = "rovaos.settings.v2";
 
 export const MODELS = [
   { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
@@ -20,14 +20,16 @@ const DEFAULTS = {
 const SettingsContext = createContext(null);
 
 function load() {
-  return { ...DEFAULTS, ...safeJSONParse(safeStorageGet(STORAGE_KEY), {}) };
+  const restored = safeJSONParse(safeStorageGet(STORAGE_KEY), {});
+  return { ...DEFAULTS, ...restored, apiKey: "" };
 }
 
 export function SettingsProvider({ children }) {
   const [settings, setSettings] = useState(load);
 
   useEffect(() => {
-    safeStorageSet(STORAGE_KEY, JSON.stringify(settings));
+    const { apiKey: _sessionOnlyKey, ...persisted } = settings;
+    safeStorageSet(STORAGE_KEY, JSON.stringify(persisted));
   }, [settings]);
 
   const value = useMemo(

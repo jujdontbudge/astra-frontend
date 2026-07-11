@@ -7,6 +7,65 @@ import { MODELS, useSettings } from "../context/SettingsContext.jsx";
 import { springs } from "../lib/motion.js";
 import { cn } from "../lib/utils.js";
 
+const INTEGRATION_LABELS = {
+  anthropic: "Anthropic",
+  microsoft365: "Microsoft 365",
+  ramp: "Ramp",
+  quickbooks: "QuickBooks",
+  monday: "Monday.com",
+  avoma: "Avoma",
+  slack: "Slack",
+  linkedin: "LinkedIn",
+  gusto: "Gusto",
+  whatsapp: "WhatsApp",
+  lastpass: "LastPass",
+  sharefile: "ShareFile",
+  calendly: "Calendly",
+};
+
+function healthSummary(data) {
+  const details = Object.values(data?.integration_details || {});
+  if (!details.length) return "Backend reachable. Integration detail is unavailable.";
+  const verified = details.filter((item) => item.state === "verified").length;
+  const configured = details.filter((item) => item.state === "configured_not_verified").length;
+  const unavailable = details.length - verified - configured;
+  return `Backend reachable. ${verified} verified, ${configured} configured but unverified, ${unavailable} unavailable.`;
+}
+
+function stateLabel(state) {
+  return {
+    verified: "Verified",
+    configured_not_verified: "Not verified",
+    unconfigured: "Not connected",
+    not_implemented: "Not implemented",
+  }[state] || "Unknown";
+}
+
+function configLabel(value = "") {
+  return String(value)
+    .replace(/_or_complete_/g, " or complete ")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detailHint(detail = {}) {
+  if (detail.state === "verified") return "A connector read succeeded in this server process.";
+  const failure = detail.last_failure || {};
+  if (failure.required_scope) return `Requires provider scope ${failure.required_scope}.`;
+  const missing = failure.missing || detail.missing;
+  if (Array.isArray(missing) && missing.length) {
+    return `Needs ${missing.map(configLabel).join(", ")}.`;
+  }
+  if (detail.state === "configured_not_verified") {
+    if (failure.status && String(detail.auth_method || "").includes("refresh_missing")) {
+      return "The read probe failed; refresh OAuth authorization.";
+    }
+    return failure.status ? `Last runtime check: ${configLabel(failure.status)}.` : "No successful connector read in this server process.";
+  }
+  return detail.state === "not_implemented" ? "No canonical connector route exists." : "Setup is incomplete.";
+}
+
 export function SettingsModal({ open, onClose }) {
   const { settings, update } = useSettings();
   const { clearAll, conversations, injectDemoAction } = useChat();
@@ -26,6 +85,8 @@ export function SettingsModal({ open, onClose }) {
 
     function onKey(event) {
       if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
         onCloseRef.current?.();
         return;
       }
@@ -93,7 +154,7 @@ export function SettingsModal({ open, onClose }) {
             ref={modalRef}
             role="dialog"
             aria-modal="true"
-            aria-label="Settings"
+            aria-labelledby="settings-title"
             onClick={(e) => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.94, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -102,8 +163,8 @@ export function SettingsModal({ open, onClose }) {
           >
             <div className="modal-head">
               <div>
-                <span className="modal-kicker">Astra</span>
-                <h2>Settings</h2>
+                <span className="modal-kicker">RovaOS</span>
+                <h2 id="settings-title">Settings</h2>
               </div>
               <button className="icon-round subtle" type="button" ref={closeRef} onClick={onClose} aria-label="Close settings">
                 <X aria-hidden="true" />
@@ -162,44 +223,33 @@ export function SettingsModal({ open, onClose }) {
                       </button>
                     </div>
                     {health && (
-                      <p className={cn("health-note", health.ok ? "ok" : "bad")}>
+                      <div className={cn("health-note", health.ok ? "ok" : "bad")} role="status" aria-live="polite">
                         {health.ok ? <CheckCircle2 aria-hidden="true" /> : <XCircle aria-hidden="true" />}
-                        <span>
+                        <div>
                           {health.ok
-                            ? "Connected to RovaOS."
+                            ? healthSummary(health.data)
                             : `Could not reach the backend: ${health.error}. Start the backend and try again.`}
-                        </span>
-                      </p>
+                          {health.ok && health.data?.integration_details && (
+                            <ul className="integration-health-list" aria-label="Integration readiness">
+                              {Object.entries(health.data.integration_details).map(([name, detail]) => (
+                                <li key={name} className={`is-${detail.state}`}>
+                                  <span>{INTEGRATION_LABELS[name] || name}</span>
+                                  <span className="integration-health-copy">
+                                    <strong>{stateLabel(detail.state)}</strong>
+                                    <small>{detailHint(detail)}</small>
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </section>
 
                   <section className="field">
-                    <label htmlFor="jarvis-key">
-                      <KeyRound aria-hidden="true" /> Anthropic API key <span className="opt">(optional)</span>
-                    </label>
-                    <div className="key-row">
-                      <input
-                        id="jarvis-key"
-                        className="input"
-                        type={showKey ? "text" : "password"}
-                        placeholder="sk-ant-..."
-                        value={settings.apiKey}
-                        onChange={(e) => update({ apiKey: e.target.value })}
-                        autoComplete="off"
-                        spellCheck={false}
-                      />
-                      <button
-                        type="button"
-                        className="icon-round subtle"
-                        onClick={() => setShowKey((v) => !v)}
-                        aria-label={showKey ? "Hide key" : "Show key"}
-                      >
-                        {showKey ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                      </button>
-                    </div>
-                    <p className="note">
-                      Stored in this browser and forwarded to the local backend only when present.
-                    </p>
+                    <label><KeyRound aria-hidden="true" /> Server-managed model key</label>
+                    <p className="note">Local RovaOS reads its Anthropic key from the backend's private environment. It is never stored or forwarded by this browser.</p>
                   </section>
                 </>
               ) : (

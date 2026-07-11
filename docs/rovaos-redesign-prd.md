@@ -1,4 +1,4 @@
-# Astra UI Redesign — Product Requirements Document (PRD)
+# RovaOS UI Redesign — Product Requirements Document (PRD)
 
 **Status:** Approved — ready to build · **Version:** 1.0 · **Date:** 2026-06-18 · **Owner:** Johan
 **Reference:** "Aura AI" dark/minimal home (centered hero → search box → suggestion chips → live card row)
@@ -10,13 +10,13 @@
 
 ## Problem & opportunity
 
-Astra is the operator surface for RovaOS (~95 tools across calendar, email, finance, comms). Today's UI is a generic glass chat: every tool — whether it just read the inbox or **booked a real meeting** — renders as the same gray "tool call" box, so high-value actions land with no weight, and the home screen is static prompt cards with no sense of the user's day. The opportunity is to make Astra feel like a premium executive operator: a focused dark surface (modeled on the Aura reference) where booking a meeting or sending an email produces a distinct, animated confirmation the user can trust at a glance.
+RovaOS is the executive operator surface (~95 tools across calendar, email, finance, comms). Today's UI is a generic glass chat: every tool — whether it just read the inbox or **booked a real meeting** — renders as the same gray "tool call" box, so high-value actions land with no weight, and the home screen is static prompt cards with no sense of the user's day. The opportunity is to make RovaOS feel like a premium executive operator: a focused dark surface (modeled on the Aura reference) where booking a meeting or sending an email produces a distinct, animated confirmation the user can trust at a glance.
 
 ## Goals / non-goals
 
 **Goals**
-- A premium single dark UI matching the Aura reference's calm/minimal feel, expressed in Astra's domain.
-- **Signature confirmation cards** with custom motion when Astra books a meeting or sends an email — the headline feature.
+- A premium single dark UI matching the Aura reference's calm/minimal feel, expressed in RovaOS's domain.
+- **Signature confirmation cards** with custom motion when RovaOS books a meeting or sends an email — the headline feature.
 - A home screen that reflects the user's actual day (next meeting / today's events / unread) when M365 is reachable.
 - Every other tool reads as one clean, collapsible chip — no raw JSON, no gray boxes, no emoji.
 - Motion is testable with zero backend (gallery + demo injection) so design can iterate fast.
@@ -28,11 +28,11 @@ Astra is the operator surface for RovaOS (~95 tools across calendar, email, fina
 
 ## Success metrics / acceptance
 
-Definition of done is the checklist in §16. In short: booking a meeting or sending an email reliably produces the matching animated hero card (content from the call, confirmation from the result); all other tools render as polished chips; `prefers-reduced-motion` degrades cleanly; the `?gallery` route + "Preview a booking" exercise every card state with no backend; Astra still talks to RovaOS over the unchanged protocol; `npm run build` is clean.
+Definition of done is the checklist in §16. In short: booking a meeting or sending an email reliably produces the matching animated hero card (content from the call, confirmation from the result); all other tools render as polished chips; `prefers-reduced-motion` degrades cleanly; the `?gallery` route + "Preview a booking" exercise every card state with no backend; The RovaOS frontend still talks to its backend over the unchanged protocol; `npm run build` is clean.
 
 ## Users & context
 
-- **Primary user — the principal (default "Rohan").** A busy operator who delegates calendar/email/ops to Astra and needs at-a-glance trust that an action actually happened. The home greeting and cards serve this user.
+- **Primary user — the principal (default "Rohan").** A busy operator who delegates calendar/email/ops to RovaOS and needs at-a-glance trust that an action actually happened. The home greeting and cards serve this user.
 - **Builder/operator — Johan.** Runs the local stack, iterates the UI, holds the M365/Anthropic credentials. Needs to test the animations without firing real M365 side effects (hence the gallery + demo harness).
 - **Environment.** M365 runs on a shared (Ben's) tenant and may be unauthed locally; the design degrades gracefully (static home cards, demo card injection) rather than breaking.
 
@@ -40,7 +40,7 @@ Definition of done is the checklist in §16. In short: booking a meeting or send
 
 ## 0. One-paragraph summary
 
-Rebuild the Astra frontend from zero as a single dark, premium, minimal chat surface modeled on the Aura reference but expressed in Astra's domain (calendar / email / RovaOS). The headline feature is **signature confirmation cards with custom motion** when Astra books a meeting (`create_calendar_event`) or sends an email (`send_email`). Every other tool renders as one polished, collapsible chip. The home screen leads with a time-aware greeting, a centered composer, suggestion chips, and a row of cards that show today's real data when Microsoft 365 is reachable and fall back to static quick-actions when it isn't. Stack: React 19 + Vite (fixed) + Tailwind v4 + Framer Motion.
+Rebuild the RovaOS frontend from zero as a single dark, premium, minimal chat surface modeled on the Aura reference but expressed in its domain (calendar / email / operations). The headline feature is **signature confirmation cards with custom motion** when RovaOS books a meeting (`create_calendar_event`) or sends an email (`send_email`). Every other tool renders as one polished, collapsible chip. The home screen leads with a time-aware greeting, a centered composer, suggestion chips, and a row of cards that show today's real data when Microsoft 365 is reachable and fall back to static quick-actions when it isn't. Stack: React 19 + Vite (fixed) + Tailwind v4 + Framer Motion.
 
 **Hard guardrail:** the WebSocket wire protocol with the RovaOS backend is a fixed contract. A rebuild re-implements the *client*, it does not reinvent the protocol. Two small **backend** additions are required (§7) and they live in Ben's repo (`rovalabs`) — call them out explicitly before merging.
 
@@ -100,7 +100,7 @@ npm i -D tailwindcss@^4 @tailwindcss/vite
 ```
 
 - **IconRail** (64px, fixed left): logo "A" with chevron (expand), New chat (`Plus`), Search (`Search`), History (`MessageSquare`), spacer, Settings (`Settings`) pinned bottom. Each is an icon button with a tooltip on hover. Active state = violet accent + soft pill background.
-- **Expand**: clicking the logo/chevron slides out the **Sidebar** panel (animated width, `motion` `layout`) overlaying or pushing main: shows search input + chat history list (rename on double-click, delete on hover) + account row. Collapsing returns to the rail. Persist collapsed state to `localStorage("astra.rail.expanded")`.
+- **Expand**: clicking the logo/chevron slides out the **Sidebar** panel (animated width, `motion` `layout`) overlaying or pushing main: shows search input + chat history list (rename on double-click, delete on hover) + account row. Collapsing returns to the rail. Persist collapsed state to `localStorage("rovaos.rail.expanded")`.
 - **Top-right**: intentionally empty (the status pill was removed earlier). Optionally a single ghost "New chat" icon on mobile only.
 - **Main**: holds either `<Home/>` (no messages) or `<Conversation/>` (has messages), with the `<Composer/>` centered-on-home / bottom-docked-in-chat.
 - **Mobile (<720px)**: rail collapses to a floating menu button (top-left) that opens the sidebar as an overlay with a scrim.
@@ -163,7 +163,7 @@ Shown when the active conversation has no messages.
           What should we tackle first?
 
       ┌──────────────────────────────────────┐
-      │  Ask Astra anything…              [↑] │
+      │  Ask RovaOS anything…              [↑] │
       │  [+]                                  │
       └──────────────────────────────────────┘
 
@@ -183,7 +183,7 @@ Shown when the active conversation has no messages.
 
 ### 5.2 Composer (shared component, see §6)
 - On home: centered, larger, with a soft accent focus glow.
-- Placeholder: `Ask Astra anything…`.
+- Placeholder: `Ask RovaOS anything…`.
 
 ### 5.3 Suggestion chips (`<SuggestionChips/>`)
 Static list (no emoji), clicking sends the prompt. Default set (redline freely):
@@ -428,7 +428,7 @@ Codex's call — organize by feature (shell / home / chat / blocks / composer / 
 3. When `create_calendar_event` / `send_email` complete, the matching hero card animates in once (spring + drawn checkmark + staggered details + per-type sweep); attendee row appears only when attendees exist.
 4. `prefers-reduced-motion` collapses all motion to a simple fade.
 5. `?gallery` renders every card state with working Replay; Settings "Preview a booking" injects a card into a live chat with no backend.
-6. Astra still talks to RovaOS over the unchanged WS protocol; BYOK Anthropic path still works.
+6. The RovaOS frontend still talks to its backend over the unchanged WS protocol; BYOK Anthropic path still works.
 7. Single dark theme, slim icon rail expandable to sidebar, top-right clean.
 8. `npm run build` is clean; backend serves `frontend/dist`.
 ```

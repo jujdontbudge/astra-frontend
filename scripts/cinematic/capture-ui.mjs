@@ -1,4 +1,4 @@
-// Capture real Astra UI footage for the hero cinematic.
+// Capture real RovaOS UI footage for the hero cinematic.
 // Reuses the e2e mock backend so the app performs its signature flows deterministically.
 // Records 1080p webm per beat; ffmpeg converts/sequences later. Zero Higgsfield credits.
 import { mkdir, rename, rm } from "node:fs/promises";
@@ -6,7 +6,7 @@ import http from "node:http";
 import { chromium } from "playwright";
 import { WebSocketServer } from "ws";
 
-const APP_URL = process.env.ASTRA_URL || "http://127.0.0.1:4280";
+const APP_URL = process.env.ROVAOS_URL || "http://127.0.0.1:4280";
 const MOCK_PORT = 18999;
 const MOCK_WS = `ws://127.0.0.1:${MOCK_PORT}`;
 const OUT = new URL("../../assets/cinematic/ui/", import.meta.url);
@@ -78,7 +78,7 @@ async function newClip(browser, name) {
   const page = await context.newPage();
   await page.addInitScript((s) => {
     localStorage.clear();
-    localStorage.setItem("astra.settings.v2", JSON.stringify(s));
+    localStorage.setItem("rovaos.settings.v2", JSON.stringify(s));
   }, seed());
   return { context, page };
 }

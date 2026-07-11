@@ -18,11 +18,11 @@ export function StartScreen({ onOpenSettings }) {
     return (
       <section className="start" aria-label="Start">
         <div className="start-inner">
-          <p className="kicker">Astra</p>
+          <p className="kicker">RovaOS</p>
           <h1>Connect your API key</h1>
           <p className="start-sub">
-            Astra runs on your own Anthropic API key. It's stored only in this browser and sent straight to
-            Anthropic — there's no server in between. Add it to start.
+            Direct mode sends your key straight to Anthropic and keeps it only for this browser session.
+            It is cleared on reload and is never stored in chat history. Add it to start.
           </p>
           <button className="connect-cta" type="button" onClick={onOpenSettings}>
             <KeyRound strokeWidth={2.1} /> Add API key

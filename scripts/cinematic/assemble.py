@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble the Astra hero cinematic: normalize clips, burn in title overlays,
+"""Assemble the RovaOS hero cinematic: normalize clips, burn in title overlays,
 cross-dissolve segments, mix the music bed. Re-runnable for iteration."""
 import json, os, subprocess, sys
 
@@ -8,7 +8,7 @@ AI = os.path.join(ROOT, "assets/cinematic/ai")
 UI = os.path.join(ROOT, "assets/cinematic/ui")
 TI = os.path.join(ROOT, "assets/cinematic/titles")
 SEG = os.path.join(ROOT, "assets/cinematic/_segments")
-OUT = os.path.join(ROOT, "assets/cinematic/astra-hero.mp4")
+OUT = os.path.join(ROOT, "assets/cinematic/rovaos-hero.mp4")
 FF = "/Users/johansardar/anaconda3/bin/ffmpeg"
 FP = "/Users/johansardar/anaconda3/bin/ffprobe"
 MUSIC = os.path.join(AI, "music.m4a")

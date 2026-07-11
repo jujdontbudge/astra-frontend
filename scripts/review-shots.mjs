@@ -1,9 +1,9 @@
-// Capture every UI state for design review → /tmp/astra-review/*.png
+// Capture every UI state for design review → /tmp/rovaos-review/*.png
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright";
 
-const URL = process.env.ASTRA_URL || "http://127.0.0.1:4280";
-const OUT = "/tmp/astra-review";
+const URL = process.env.ROVAOS_URL || "http://127.0.0.1:4280";
+const OUT = "/tmp/rovaos-review";
 await mkdir(OUT, { recursive: true });
 
 const b = await chromium.launch({ headless: true });

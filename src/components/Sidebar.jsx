@@ -9,12 +9,13 @@ import {
   Settings,
   Trash2,
   UserRound,
+  Waypoints,
 } from "lucide-react";
 import { useChat } from "../context/ChatContext.jsx";
 import { springs } from "../lib/motion.js";
 import { cn } from "../lib/utils.js";
 
-export function Sidebar({ onOpenSettings, onNavigate, onCollapse, focusSearchSignal = 0 }) {
+export function Sidebar({ onOpenSettings, onNavigate, onGraph, onCollapse, focusSearchSignal = 0 }) {
   const { conversations, activeId, newChat, selectChat, deleteChat, renameChat } = useChat();
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -52,7 +53,7 @@ export function Sidebar({ onOpenSettings, onNavigate, onCollapse, focusSearchSig
     <motion.aside className="sidebar" aria-label="Conversations" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={springs.panel}>
       <div className="brand">
         <span className="brand-mark">A</span>
-        <span className="brand-name">Astra</span>
+        <span className="brand-name">RovaOS</span>
         <button className="sidebar-collapse" type="button" onClick={onCollapse} aria-label="Collapse sidebar">
           <ChevronsLeft aria-hidden="true" />
         </button>
@@ -61,6 +62,11 @@ export function Sidebar({ onOpenSettings, onNavigate, onCollapse, focusSearchSig
       <button className="new-chat" type="button" onClick={handleNew}>
         <Plus aria-hidden="true" />
         <span>New chat</span>
+      </button>
+
+      <button className="new-chat sidebar-graph" type="button" onClick={onGraph}>
+        <Waypoints aria-hidden="true" />
+        <span>Graph view</span>
       </button>
 
       <div className="thread-search">

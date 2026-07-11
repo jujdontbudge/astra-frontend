@@ -4,7 +4,7 @@ node_modules/
 # Build output
 dist/
 
-# Cinematic scratch / intermediates (large binaries; final astra-hero.mp4 is kept)
+# Cinematic scratch / intermediates (large binaries; final rovaos-hero.mp4 is kept)
 assets/cinematic/_segments/
 assets/cinematic/_verify/
 

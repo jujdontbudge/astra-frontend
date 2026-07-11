@@ -7,25 +7,30 @@ import {
   useRef,
   useState,
 } from "react";
+import { decideJarvisAction, forgetApprovalSecrets } from "../agent/jarvis.js";
 import { runAgent } from "../agent/runAgent.js";
-import { classifyTool, galleryBlocks } from "../lib/tooling.js";
+import { classifyTool, galleryBlocks, isFailure, safeErrorMessage } from "../lib/tooling.js";
+import { approvalExpiryMs } from "../lib/approval.js";
 import { parseMaybeJSON, safeJSONParse, safeStorageGet, safeStorageSet, truncate, uid } from "../lib/utils.js";
 import { useSettings } from "./SettingsContext.jsx";
 
-const STORAGE_KEY = "astra.chat.v2";
+const STORAGE_KEY = "rovaos.chat.v2";
 const ChatContext = createContext(null);
+// Actions never change identity, so components that only dispatch (message
+// toolbars, approval buttons) can subscribe here and skip per-token re-renders.
+const ChatActionsContext = createContext(null);
 
 function blankConversation(title = "New chat") {
   const ts = Date.now();
   return { id: uid("conv"), title, titleSet: title !== "New chat", createdAt: ts, updatedAt: ts, messages: [] };
 }
 
-function userMessage(text, attachments) {
+function userMessage(text) {
   return {
     id: uid("user"),
     role: "user",
     text,
-    attachments: attachments || [],
+    attachments: [],
     status: "done",
     blocks: [],
     error: null,
@@ -36,7 +41,7 @@ function userMessage(text, attachments) {
 
 function assistantPlaceholder() {
   return {
-    id: uid("astra"),
+    id: uid("rovaos"),
     role: "assistant",
     text: "",
     attachments: [],
@@ -62,8 +67,14 @@ function normalizeBlockFromCall(ev) {
 }
 
 function completeBlock(block, ev) {
-  const result = parseMaybeJSON(ev.output);
-  const failed = Boolean(result?.error || result?.ok === false);
+  const parsed = parseMaybeJSON(ev.output);
+  const payloadMissing =
+    ev.output == null ||
+    (typeof ev.output === "string" && !ev.output.trim()) ||
+    parsed == null ||
+    (typeof parsed === "object" && !Array.isArray(parsed) && Object.keys(parsed).length === 0);
+  const result = payloadMissing ? { error: "No result was returned for this tool call." } : parsed;
+  const failed = payloadMissing || isFailure(result);
   return {
     ...block,
     kind: classifyTool(ev.tool || block.tool),
@@ -74,6 +85,10 @@ function completeBlock(block, ev) {
   };
 }
 
+function isApprovalPendingResult(value) {
+  return Boolean(value && typeof value === "object" && value.status === "approval_required");
+}
+
 function upsertCall(blocks, ev) {
   const next = normalizeBlockFromCall(ev);
   const idx = blocks.findIndex((block) => block.id === next.id);
@@ -82,8 +97,23 @@ function upsertCall(blocks, ev) {
 }
 
 function upsertResult(blocks, ev) {
+  const parsed = parseMaybeJSON(ev.output);
   const idx = blocks.findIndex((block) => block.id === ev.id);
   if (idx === -1) {
+    if (isApprovalPendingResult(parsed)) {
+      return [
+        ...blocks,
+        {
+          id: ev.id || uid("tool"),
+          kind: classifyTool(ev.tool),
+          tool: ev.tool,
+          input: {},
+          result: { error: "Approval details were not received for this action." },
+          rawOutput: ev.output,
+          status: "error",
+        },
+      ];
+    }
     return [
       ...blocks,
       completeBlock(
@@ -100,19 +130,148 @@ function upsertResult(blocks, ev) {
       ),
     ];
   }
-  return blocks.map((block) => (block.id === ev.id ? completeBlock(block, ev) : block));
+  return blocks.map((block) => {
+    if (block.id !== ev.id) return block;
+    if (isApprovalPendingResult(parsed)) {
+      if (!block.approval) {
+        return {
+          ...block,
+          status: "error",
+          result: { error: "Approval details were not received for this action." },
+          rawOutput: ev.output,
+        };
+      }
+      return { ...block, status: "approval_required", result: parsed, rawOutput: ev.output };
+    }
+    return completeBlock(block, ev);
+  });
+}
+
+function approvalBlockIndex(blocks, ev) {
+  return blocks.findIndex(
+    (block) =>
+      (ev.id && block.id === ev.id) ||
+      (ev.actionId && block.approval?.actionId === ev.actionId)
+  );
+}
+
+function upsertApproval(blocks, ev) {
+  const idx = approvalBlockIndex(blocks, ev);
+  const approval = {
+    actionId: ev.actionId,
+    effect: ev.effect || "This action changes data in a connected service.",
+    expiresAt: ev.expiresAt || null,
+    message: ev.message || "Review the exact arguments before deciding.",
+    status: "pending",
+    error: null,
+  };
+  if (idx === -1) {
+    return [
+      ...blocks,
+      {
+        ...normalizeBlockFromCall(ev),
+        input: ev.input || {},
+        status: "approval_required",
+        approval,
+      },
+    ];
+  }
+  return blocks.map((block, blockIndex) =>
+    blockIndex === idx
+      ? {
+          ...block,
+          kind: classifyTool(ev.tool || block.tool),
+          tool: ev.tool || block.tool,
+          input: ev.input || block.input || {},
+          result: null,
+          rawOutput: null,
+          status: "approval_required",
+          approval,
+        }
+      : block
+  );
+}
+
+function updateActionState(blocks, ev) {
+  const idx = approvalBlockIndex(blocks, ev);
+  if (idx === -1) return blocks;
+  const approvalStatus = ev.status || "executing";
+  return blocks.map((block, blockIndex) => {
+    if (blockIndex !== idx) return block;
+    const cancelled = approvalStatus === "cancelled";
+    const failed = approvalStatus === "failed";
+    return {
+      ...block,
+      status: cancelled ? "cancelled" : failed ? "error" : "executing",
+      result: cancelled ? { status: "cancelled", message: "Action cancelled before execution." } : block.result,
+      approval: {
+        ...block.approval,
+        status: approvalStatus,
+        error: failed ? "The connected action failed." : null,
+        resolvedAt: cancelled || failed ? Date.now() : block.approval?.resolvedAt || null,
+      },
+    };
+  });
+}
+
+function upsertActionResult(blocks, ev) {
+  const idx = approvalBlockIndex(blocks, ev);
+  if (idx === -1) return blocks;
+  return blocks.map((block, blockIndex) => {
+    if (blockIndex !== idx) return block;
+    let completed = completeBlock(block, ev);
+    if (ev.status && ev.status !== "succeeded" && completed.status === "done") {
+      const parsed = completed.result && typeof completed.result === "object" ? completed.result : { output: completed.result };
+      completed = {
+        ...completed,
+        status: "error",
+        result: { ...parsed, error: "The backend did not confirm this action as successful." },
+      };
+    }
+    return {
+      ...completed,
+      approval: {
+        ...block.approval,
+        status: completed.status === "done" ? "succeeded" : "failed",
+        error: completed.status === "done" ? null : safeErrorMessage(completed.result?.error),
+        resolvedAt: Date.now(),
+      },
+    };
+  });
+}
+
+function upsertActionError(blocks, ev) {
+  const idx = approvalBlockIndex(blocks, ev);
+  if (idx === -1) return blocks;
+  const status = ev.code === "action_expired" ? "expired" : "failed";
+  return blocks.map((block, blockIndex) =>
+    blockIndex === idx
+      ? {
+          ...block,
+          status: "error",
+          result: { error: ev.message || "The action could not be completed.", code: ev.code || "action_failed" },
+          approval: {
+            ...block.approval,
+            status,
+            error: ev.message || "The action could not be completed.",
+            resolvedAt: Date.now(),
+          },
+        }
+      : block
+  );
 }
 
 function finishRunningBlocks(blocks) {
   return blocks.map((block) => {
     if (block.status !== "running") return block;
-    if (block.kind === "tool") {
-      return { ...block, status: "done", result: block.result || { status: "done" } };
-    }
-    // Calendar/email actions that never received a result would otherwise stay
-    // hidden forever (ActionBlock renders nothing while they're "running"). Resolve
-    // them to an honest "unconfirmed" state so the card appears as a failure.
-    return { ...block, status: "error", result: block.result || { error: "Interrupted before confirmation" } };
+    // A final answer is not evidence that a preceding tool call completed. Every
+    // call must receive its own correlated tool_result before the UI can show it
+    // as successful, including generic tools that used to be auto-marked "done".
+    return {
+      ...block,
+      status: "error",
+      result: block.result || { error: "No result was returned before the response completed." },
+    };
   });
 }
 
@@ -130,6 +289,14 @@ function reduceMessage(msg, ev) {
       return { ...msg, status: "working", blocks: upsertCall(msg.blocks, ev) };
     case "tool_result":
       return { ...msg, status: msg.status === "thinking" ? "working" : msg.status, blocks: upsertResult(msg.blocks, ev) };
+    case "approval_required":
+      return { ...msg, status: "working", blocks: upsertApproval(msg.blocks, ev) };
+    case "action_state":
+      return { ...msg, blocks: updateActionState(msg.blocks, ev) };
+    case "action_result":
+      return { ...msg, blocks: upsertActionResult(msg.blocks, ev) };
+    case "action_error":
+      return { ...msg, blocks: upsertActionError(msg.blocks, ev) };
     case "error":
       return { ...msg, status: "error", error: ev.message || "Something went wrong.", blocks: finishRunningBlocks(msg.blocks) };
     case "feedback":
@@ -139,6 +306,26 @@ function reduceMessage(msg, ev) {
   }
 }
 
+const OPEN_APPROVAL_STATUSES = ["pending", "approving", "cancelling", "approved", "executing"];
+
+// A reloaded page can never redeem an approval token: the plaintext secret only
+// exists in the pre-reload in-memory vault. Every still-open approval must be
+// neutralized regardless of the status the surrounding message was saved with.
+function healApprovalBlocks(blocks) {
+  return (blocks || []).map((block) => {
+    if (!block.approval || !OPEN_APPROVAL_STATUSES.includes(block.approval.status)) {
+      return block;
+    }
+    const message = "This approval is no longer available after a reload. Request the action again.";
+    return {
+      ...block,
+      status: "error",
+      result: { error: message, code: "approval_unavailable" },
+      approval: { ...block.approval, status: "unavailable", error: message, resolvedAt: Date.now() },
+    };
+  });
+}
+
 function healConversation(c) {
   const messages = Array.isArray(c?.messages) ? c.messages.filter((m) => m && typeof m === "object") : [];
   return {
@@ -146,9 +333,17 @@ function healConversation(c) {
     messages: messages.map((m) => {
       if (m.role !== "assistant") return m;
       if (m.status === "thinking" || m.status === "working" || m.status === "streaming") {
-        return { ...m, status: m.text || m.blocks?.length ? "done" : "stopped", blocks: finishRunningBlocks(m.blocks || []) };
+        return {
+          ...m,
+          status: m.text || m.blocks?.length ? "done" : "stopped",
+          blocks: healApprovalBlocks(finishRunningBlocks(m.blocks || [])),
+        };
       }
-      return { ...m, blocks: m.blocks || [], error: m.error || null };
+      return {
+        ...m,
+        blocks: healApprovalBlocks(m.blocks || []),
+        error: m.error || null,
+      };
     }),
   };
 }
@@ -180,6 +375,13 @@ export function ChatProvider({ children }) {
   const [isStreaming, setIsStreaming] = useState(false);
   const streamingConvId = useRef(null);
   const abortRef = useRef(null);
+  const actionLocksRef = useRef(new Set());
+  const actionControllersRef = useRef(new Map());
+  // Mirror volatile state into refs so action callbacks can stay
+  // identity-stable across streaming updates (same pattern as settingsRef).
+  const stateRef = useRef({ conversations, activeId });
+  stateRef.current = { conversations, activeId };
+  const sendLockRef = useRef(false);
 
   const setConversations = useCallback((updater) => {
     setState((prev) => ({ ...prev, conversations: typeof updater === "function" ? updater(prev.conversations) : updater }));
@@ -225,17 +427,77 @@ export function ChatProvider({ children }) {
     abortRef.current?.abort();
   }, []);
 
+  const decideApproval = useCallback(
+    async (messageId, blockId, decision) => {
+      const { conversations: currentConversations, activeId } = stateRef.current;
+      if (!activeId || (decision !== "approve" && decision !== "cancel")) return;
+      const conversation = currentConversations.find((item) => item.id === activeId);
+      const message = conversation?.messages.find((item) => item.id === messageId);
+      const block = message?.blocks?.find((item) => item.id === blockId);
+      const actionId = block?.approval?.actionId;
+      if (!actionId || actionLocksRef.current.has(actionId)) return;
+
+      actionLocksRef.current.add(actionId);
+      applyEvent(activeId, messageId, {
+        type: "action_state",
+        id: blockId,
+        actionId,
+        tool: block.tool,
+        status: decision === "approve" ? "approving" : "cancelling",
+      });
+
+      const controller = new AbortController();
+      actionControllersRef.current.set(actionId, { convId: activeId, controller });
+      try {
+        const current = settingsRef.current;
+        if (current?.backend !== "jarvis") throw new Error("Structured approvals require the local RovaOS backend.");
+        const expiresAt = approvalExpiryMs(block.approval.expiresAt);
+        if (expiresAt && expiresAt <= Date.now()) {
+          const expired = new Error("This approval request has expired. Request the action again.");
+          expired.code = "action_expired";
+          throw expired;
+        }
+        await decideJarvisAction({
+          baseUrl: current.jarvisUrl,
+          sessionId: activeId,
+          actionId,
+          decision,
+          signal: controller.signal,
+          onEvent: (event) => applyEvent(activeId, messageId, event),
+        });
+      } catch (error) {
+        if (!error?.reported) {
+          applyEvent(activeId, messageId, {
+            type: "action_error",
+            id: blockId,
+            actionId,
+            tool: block.tool,
+            code: error?.code || "action_failed",
+            message: error?.name === "AbortError" ? "The approval request was interrupted." : error?.message,
+          });
+        }
+      } finally {
+        actionControllersRef.current.delete(actionId);
+      }
+    },
+    [applyEvent]
+  );
+
   const send = useCallback(
-    async (rawText, attachments = []) => {
+    async (rawText) => {
       const text = (rawText || "").trim();
-      if (!text || isStreaming) return;
+      // Ref lock instead of state: two Enter presses in the same tick both see
+      // stale isStreaming, but the ref flips synchronously.
+      if (!text || sendLockRef.current) return;
+      sendLockRef.current = true;
 
       const current = settingsRef.current;
-      const existing = conversations.find((c) => c.id === activeId);
+      const { conversations: currentConversations, activeId } = stateRef.current;
+      const existing = currentConversations.find((c) => c.id === activeId);
       const conv = existing || blankConversation();
       const convId = conv.id;
       const priorMessages = conv.messages;
-      const userMsg = userMessage(text, attachments);
+      const userMsg = userMessage(text);
       const assistantMsg = assistantPlaceholder();
       const assistantId = assistantMsg.id;
 
@@ -283,10 +545,11 @@ export function ChatProvider({ children }) {
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
         streamingConvId.current = null;
+        sendLockRef.current = false;
         setIsStreaming(false);
       }
     },
-    [activeId, conversations, isStreaming, applyEvent]
+    [applyEvent]
   );
 
   const newChat = useCallback(() => {
@@ -308,6 +571,12 @@ export function ChatProvider({ children }) {
   const deleteChat = useCallback(
     (id) => {
       if (streamingConvId.current === id) stop();
+      forgetApprovalSecrets(id);
+      for (const [actionId, pending] of actionControllersRef.current) {
+        if (pending.convId !== id) continue;
+        pending.controller.abort();
+        actionControllersRef.current.delete(actionId);
+      }
       setState((prev) => ({
         activeId: prev.activeId === id ? null : prev.activeId,
         conversations: prev.conversations.filter((c) => c.id !== id),
@@ -318,30 +587,36 @@ export function ChatProvider({ children }) {
 
   const clearAll = useCallback(() => {
     stop();
+    for (const conversation of stateRef.current.conversations) forgetApprovalSecrets(conversation.id);
+    for (const pending of actionControllersRef.current.values()) pending.controller.abort();
+    actionControllersRef.current.clear();
     setState({ conversations: [], activeId: null });
   }, [stop]);
 
   const setFeedback = useCallback(
     (messageId, value) => {
+      const { activeId } = stateRef.current;
       if (!activeId) return;
       applyEvent(activeId, messageId, { type: "feedback", value });
     },
-    [activeId, applyEvent]
+    [applyEvent]
   );
 
   const retryAssistant = useCallback(
     (messageId) => {
-      const conv = conversations.find((c) => c.id === activeId);
+      const { conversations: currentConversations, activeId } = stateRef.current;
+      const conv = currentConversations.find((c) => c.id === activeId);
       if (!conv) return;
       const idx = conv.messages.findIndex((m) => m.id === messageId);
       const previousUser = [...conv.messages.slice(0, idx)].reverse().find((m) => m.role === "user");
-      if (previousUser) send(previousUser.text, previousUser.attachments || []);
+      if (previousUser) send(previousUser.text);
     },
-    [activeId, conversations, send]
+    [send]
   );
 
   const injectDemoAction = useCallback(() => {
-    const conv = conversations.find((c) => c.id === activeId) || blankConversation("Preview booking");
+    const { conversations: currentConversations, activeId } = stateRef.current;
+    const conv = currentConversations.find((c) => c.id === activeId) || blankConversation("Preview booking");
     const convId = conv.id;
     const assistantMsg = {
       ...assistantPlaceholder(),
@@ -373,11 +648,41 @@ export function ChatProvider({ children }) {
         ),
       };
     });
-  }, [activeId, conversations]);
+  }, []);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeId) || null,
     [conversations, activeId]
+  );
+
+  const actions = useMemo(
+    () => ({
+      send,
+      stop,
+      newChat,
+      selectChat,
+      renameChat,
+      deleteChat,
+      clearAll,
+      setFeedback,
+      retryAssistant,
+      decideApproval,
+      injectDemoAction,
+      messageTextForShare,
+    }),
+    [
+      send,
+      stop,
+      newChat,
+      selectChat,
+      renameChat,
+      deleteChat,
+      clearAll,
+      setFeedback,
+      retryAssistant,
+      decideApproval,
+      injectDemoAction,
+    ]
   );
 
   const value = useMemo(
@@ -387,41 +692,26 @@ export function ChatProvider({ children }) {
       activeConversation,
       messages: activeConversation?.messages || [],
       isStreaming,
-      send,
-      stop,
-      newChat,
-      selectChat,
-      renameChat,
-      deleteChat,
-      clearAll,
-      setFeedback,
-      retryAssistant,
-      injectDemoAction,
-      messageTextForShare,
+      ...actions,
     }),
-    [
-      conversations,
-      activeId,
-      activeConversation,
-      isStreaming,
-      send,
-      stop,
-      newChat,
-      selectChat,
-      renameChat,
-      deleteChat,
-      clearAll,
-      setFeedback,
-      retryAssistant,
-      injectDemoAction,
-    ]
+    [conversations, activeId, activeConversation, isStreaming, actions]
   );
 
-  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+  return (
+    <ChatActionsContext.Provider value={actions}>
+      <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
+    </ChatActionsContext.Provider>
+  );
 }
 
 export function useChat() {
   const ctx = useContext(ChatContext);
   if (!ctx) throw new Error("useChat must be used within ChatProvider");
+  return ctx;
+}
+
+export function useChatActions() {
+  const ctx = useContext(ChatActionsContext);
+  if (!ctx) throw new Error("useChatActions must be used within ChatProvider");
   return ctx;
 }

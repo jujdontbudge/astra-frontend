@@ -1,47 +1,24 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUp, AudioLines, Paperclip, Sparkles, Square, X } from "lucide-react";
+import { ArrowUp, AudioLines, Paperclip, Sparkles, Square } from "lucide-react";
 import { useChat } from "../context/ChatContext.jsx";
 import { useSettings } from "../context/SettingsContext.jsx";
 import { springs } from "../lib/motion.js";
-import { uid } from "../lib/utils.js";
-
-const MAX_EMBED = 1.5 * 1024 * 1024;
-
-function readAsDataUrl(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(file);
-  });
-}
-
-function AttachmentChip({ att, onRemove }) {
-  return (
-    <motion.span className="attach-chip" layout initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
-      {att.dataUrl && <img className="attach-chip-thumb" src={att.dataUrl} alt="" />}
-      <span className="attach-name">{att.name}</span>
-      <button type="button" className="attach-remove" onClick={() => onRemove(att.id)} aria-label={`Remove ${att.name}`}>
-        <X aria-hidden="true" />
-      </button>
-    </motion.span>
-  );
-}
 
 export function Composer({ disabled = false, onDisabledClick, placement = "home" }) {
   const { send, stop, isStreaming } = useChat();
   const { settings } = useSettings();
   const backendLabel = settings.backend === "jarvis" ? "RovaOS" : "Anthropic";
   const [text, setText] = useState("");
-  const [attachments, setAttachments] = useState([]);
+  const attachmentNoteId = useId();
   const textareaRef = useRef(null);
-  const fileRef = useRef(null);
   const wrapRef = useRef(null);
   const prevComposerH = useRef(0);
 
   useLayoutEffect(() => {
-    const el = wrapRef.current;
+    // Measure the whole docked stack (suggestion chips + composer) so the
+    // jump-to-latest pill clears everything anchored above the input.
+    const el = wrapRef.current?.closest(".docked-composer") || wrapRef.current;
     if (!el) return;
     const h = el.offsetHeight;
     document.documentElement.style.setProperty("--composer-h", `${h}px`);
@@ -57,10 +34,10 @@ export function Composer({ disabled = false, onDisabledClick, placement = "home"
       }
     }
     prevComposerH.current = h;
-  }, [text, attachments, placement]);
+  }, [text, placement]);
 
   useEffect(() => {
-    const el = wrapRef.current;
+    const el = wrapRef.current?.closest(".docked-composer") || wrapRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const apply = () => document.documentElement.style.setProperty("--composer-h", `${el.offsetHeight}px`);
     apply();
@@ -79,9 +56,8 @@ export function Composer({ disabled = false, onDisabledClick, placement = "home"
   function submit() {
     const value = text.trim();
     if (!value || isStreaming || disabled) return;
-    send(value, attachments);
+    send(value);
     setText("");
-    setAttachments([]);
     requestAnimationFrame(autosize);
   }
 
@@ -90,23 +66,6 @@ export function Composer({ disabled = false, onDisabledClick, placement = "home"
       event.preventDefault();
       submit();
     }
-  }
-
-  async function onFiles(event) {
-    const files = Array.from(event.target.files || []);
-    event.target.value = "";
-    const next = await Promise.all(
-      files.map(async (file) => {
-        const isImage = file.type.startsWith("image/");
-        const dataUrl = isImage && file.size <= MAX_EMBED ? await readAsDataUrl(file) : null;
-        return { id: uid("att"), name: file.name, type: file.type, dataUrl };
-      })
-    );
-    setAttachments((prev) => [...prev, ...next]);
-  }
-
-  function removeAttachment(id) {
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
   const canSend = text.trim().length > 0 && !isStreaming && !disabled;
@@ -118,16 +77,6 @@ export function Composer({ disabled = false, onDisabledClick, placement = "home"
       transition={springs.panel}
       data-testid="composer-wrap"
     >
-      <AnimatePresence>
-        {attachments.length > 0 && !disabled && (
-          <motion.div className="attachments" layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
-            {attachments.map((att) => (
-              <AttachmentChip att={att} key={att.id} onRemove={removeAttachment} />
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <form
         className={disabled ? "composer disabled" : "composer"}
         onSubmit={(e) => {
@@ -139,10 +88,11 @@ export function Composer({ disabled = false, onDisabledClick, placement = "home"
         <div className="composer-controls">
           <button
             type="button"
-            className="icon-round attach-btn"
-            aria-label="Attach files"
-            onClick={() => fileRef.current?.click()}
-            disabled={disabled}
+            className="icon-round attach-btn unavailable"
+            aria-label="File attachments unavailable"
+            aria-describedby={attachmentNoteId}
+            title="Files are not sent by this build"
+            disabled
           >
             <Paperclip aria-hidden="true" />
           </button>
@@ -151,12 +101,11 @@ export function Composer({ disabled = false, onDisabledClick, placement = "home"
             <span>{backendLabel}</span>
           </span>
         </div>
-        <input ref={fileRef} type="file" accept="image/*,.pdf,.txt,.md,.json,.csv" multiple hidden onChange={onFiles} />
 
         <textarea
           ref={textareaRef}
           className="composer-input"
-          placeholder={disabled ? "Open Settings to connect Astra" : "Ask Astra anything…"}
+          placeholder={disabled ? "Open Settings to connect RovaOS" : "Ask RovaOS anything…"}
           rows={1}
           value={text}
           onChange={(e) => {
@@ -164,7 +113,7 @@ export function Composer({ disabled = false, onDisabledClick, placement = "home"
             autosize();
           }}
           onKeyDown={onKeyDown}
-          aria-label="Ask Astra anything"
+          aria-label="Ask RovaOS anything"
           readOnly={disabled}
           data-testid="composer-input"
         />
@@ -217,6 +166,9 @@ export function Composer({ disabled = false, onDisabledClick, placement = "home"
           </AnimatePresence>
         </div>
       </form>
+      <p className="attachment-notice" id={attachmentNoteId}>
+        File uploads are unavailable; only your typed message is sent.
+      </p>
     </motion.div>
   );
 }

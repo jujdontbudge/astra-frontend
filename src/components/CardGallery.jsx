@@ -27,7 +27,7 @@ export function CardGallery() {
       <header className="gallery-hero">
         <span className="brand-mark">A</span>
         <div>
-          <h1>Astra card gallery</h1>
+          <h1>RovaOS card gallery</h1>
           <p>Motion and state harness for confirmation cards and tool chips.</p>
         </div>
       </header>

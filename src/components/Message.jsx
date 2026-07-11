@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Check, Copy, RefreshCw, Share2, ThumbsDown, ThumbsUp } from "lucide-react";
-import { useChat } from "../context/ChatContext.jsx";
+import { useChatActions } from "../context/ChatContext.jsx";
 import { fadeUp, springs } from "../lib/motion.js";
 import { Markdown } from "../lib/markdown.jsx";
 import { cn, formatTime } from "../lib/utils.js";
@@ -27,7 +27,7 @@ function Attachments({ items }) {
 
 function Typing() {
   return (
-    <div className="typing" role="status" aria-label="Astra is working" data-testid="typing-indicator">
+    <div className="typing" role="status" aria-label="RovaOS is working" data-testid="typing-indicator">
       <span />
       <span />
       <span />
@@ -39,11 +39,20 @@ function visibleBlock(block) {
   return !(block.status === "running" && (block.kind === "calendar" || block.kind === "email"));
 }
 
-function revealNextWord(current, target) {
+// Reveal at least one word per tick, scaling up with the backlog so a long
+// answer that has fully arrived finishes in a couple of seconds instead of
+// crawling at a fixed word rate.
+function revealNextChunk(current, target) {
   if (!target.startsWith(current)) return target;
-  const remaining = target.slice(current.length);
-  const match = remaining.match(/^(\s*\S+\s*)/);
-  return match ? current + match[1] : target;
+  let next = current;
+  const remainingWords = target.slice(current.length).split(/\s+/).filter(Boolean).length;
+  const wordsPerTick = Math.max(1, Math.ceil(remainingWords / 30));
+  for (let i = 0; i < wordsPerTick && next !== target; i += 1) {
+    const match = target.slice(next.length).match(/^(\s*\S+\s*)/);
+    if (!match) return target;
+    next += match[1];
+  }
+  return next;
 }
 
 function useRevealedText(message, enabled) {
@@ -71,7 +80,7 @@ function useRevealedText(message, enabled) {
           window.clearInterval(interval);
           return current;
         }
-        return revealNextWord(current, target);
+        return revealNextChunk(current, target);
       });
     }, 62);
 
@@ -98,7 +107,7 @@ async function copyText(text) {
 }
 
 function MessageToolbar({ message }) {
-  const { retryAssistant, setFeedback, messageTextForShare } = useChat();
+  const { retryAssistant, setFeedback, messageTextForShare } = useChatActions();
   const [copied, setCopied] = useState(null);
   const shareText = messageTextForShare(message);
 
@@ -143,9 +152,37 @@ function MessageToolbar({ message }) {
   );
 }
 
-export function Message({ message }) {
+// Once an approval reaches a terminal state, the assistant prose written while
+// the action was pending becomes historically stale ("this has not run yet").
+// The prose stays visible as context, and this line states what actually happened.
+function approvalOutcomeText(block) {
+  const approval = block.approval || {};
+  const time = approval.resolvedAt ? ` at ${formatTime(approval.resolvedAt)}` : "";
+  switch (approval.status) {
+    case "succeeded":
+      return `Approved action completed${time} — see the result card above.`;
+    case "failed":
+      return `Approved action failed${time} — see the result card above. Nothing else ran.`;
+    case "cancelled":
+      return `Action cancelled before execution${time}. Nothing ran.`;
+    case "expired":
+      return `Approval expired without execution${time}. Nothing ran.`;
+    case "unavailable":
+      return "This approval became unavailable after a reload. Nothing ran.";
+    default:
+      return null;
+  }
+}
+
+// Memoized: streaming updates preserve referential identity for untouched
+// messages, so only the actively-updating message re-renders per token.
+export const Message = memo(function Message({ message }) {
   const isUser = message.role === "user";
   const visibleBlocks = (message.blocks || []).filter(visibleBlock);
+  const approvalBlocks = visibleBlocks.filter((block) => block.approval);
+  const approvalResolved =
+    approvalBlocks.length > 0 &&
+    approvalBlocks.every((block) => !["pending", "approving", "cancelling", "approved", "executing"].includes(block.approval.status));
   const revealedText = useRevealedText(message, !isUser && message.status !== "error");
   const isRevealing = !isUser && revealedText !== (message.text || "");
   const showTyping =
@@ -173,7 +210,7 @@ export function Message({ message }) {
     <motion.article className="msg assistant" variants={fadeUp} initial="hidden" animate="show" transition={springs.soft} data-testid="assistant-message">
       <div className="msg-body">
         {visibleBlocks.map((block) => (
-          <ActionBlock block={block} key={block.id} />
+          <ActionBlock block={block} messageId={message.id} key={block.id} />
         ))}
         {showTyping && <Typing />}
         {message.error && <ErrorNote message={message.error} />}
@@ -182,10 +219,18 @@ export function Message({ message }) {
             <Markdown text={revealedText} />
           </div>
         )}
+        {approvalResolved && (
+          <div className="execution-summary" data-testid="execution-summary" role="status">
+            {approvalBlocks.map((block) => {
+              const text = approvalOutcomeText(block);
+              return text ? <p key={block.id}>{text}</p> : null;
+            })}
+          </div>
+        )}
         {message.status === "stopped" && <span className="msg-flag">Stopped</span>}
         {(message.text || visibleBlocks.length > 0 || message.error) && <MessageToolbar message={message} />}
         {(message.text || visibleBlocks.length > 0 || message.error) && <time className="msg-time">{formatTime(message.time)}</time>}
       </div>
     </motion.article>
   );
-}
+});

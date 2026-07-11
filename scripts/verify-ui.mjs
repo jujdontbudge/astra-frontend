@@ -1,5 +1,5 @@
 import { chromium } from "playwright";
-const URL = process.env.ASTRA_URL || "http://127.0.0.1:4280";
+const URL = process.env.ROVAOS_URL || "http://127.0.0.1:4280";
 const b = await chromium.launch({ headless: true });
 const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 const p = await ctx.newPage();

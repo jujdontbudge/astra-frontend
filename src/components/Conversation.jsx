@@ -3,6 +3,14 @@ import { ArrowDown } from "lucide-react";
 import { useChat } from "../context/ChatContext.jsx";
 import { Message } from "./Message.jsx";
 
+function spokenText(value) {
+  return String(value || "")
+    .replace(/```[\s\S]*?```/g, " code block ")
+    .replace(/[*_`#>\[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function Conversation() {
   const { messages, activeId, isStreaming } = useChat();
   const flowRef = useRef(null);
@@ -10,6 +18,21 @@ export function Conversation() {
   const nearBottom = useRef(true);
   const lastMessageState = useRef({ activeId: null, count: 0, lastId: null });
   const [showJump, setShowJump] = useState(false);
+  const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant") || null;
+  const finalText = spokenText(lastAssistant?.text);
+  const politeAnnouncement = isStreaming
+    ? "RovaOS is responding."
+    : lastAssistant?.status === "done"
+      ? finalText
+        ? `RovaOS response complete. ${finalText}`
+        : "RovaOS response complete."
+      : lastAssistant?.status === "stopped"
+        ? "RovaOS response stopped."
+        : "";
+  const errorAnnouncement =
+    lastAssistant?.status === "error" && lastAssistant.error
+      ? `RovaOS error: ${spokenText(lastAssistant.error)}`
+      : "";
 
   function scrollToBottom(behavior = "smooth") {
     const el = flowRef.current;
@@ -38,11 +61,11 @@ export function Conversation() {
   useEffect(() => {
     const inner = innerRef.current;
     if (!inner || typeof ResizeObserver === "undefined") return;
+    // Follow streaming growth only while the user is pinned to the bottom.
+    // Recomputing distance here with a looser threshold than onScroll's would
+    // yank back readers who deliberately scrolled up.
     const ro = new ResizeObserver(() => {
-      const el = flowRef.current;
-      if (!el) return;
-      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-      if (distance < 220) scrollToBottom("auto");
+      if (nearBottom.current) scrollToBottom("auto");
     });
     ro.observe(inner);
     return () => ro.disconnect();
@@ -65,8 +88,17 @@ export function Conversation() {
           ))}
         </div>
       </div>
-      <div className="sr-only" role="status" aria-live="polite">
-        {isStreaming ? "Astra is responding…" : ""}
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="conversation-announcement"
+      >
+        {politeAnnouncement}
+      </div>
+      <div className="sr-only" role="alert" aria-live="assertive" aria-atomic="true" data-testid="conversation-error-announcement">
+        {errorAnnouncement}
       </div>
       {showJump && (
         <button className="jump-latest" type="button" onClick={() => scrollToBottom("smooth")}>

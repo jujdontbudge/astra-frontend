@@ -1,5 +1,4 @@
 import { callAnthropic } from "./anthropic.js";
-import { callDemoAgent } from "./demo.js";
 import { callJarvis } from "./jarvis.js";
 
 // Two ways to run:
@@ -7,19 +6,13 @@ import { callJarvis } from "./jarvis.js";
 //   "anthropic" — bring-your-own-key, stream straight from the browser to Anthropic.
 export async function runAgent({ settings, text, mode, history, sessionId, onEvent, signal }) {
   if (settings?.backend === "jarvis") {
-    try {
-      return await callJarvis({
-        baseUrl: settings.jarvisUrl,
-        sessionId,
-        text,
-        apiKey: settings.apiKey, // forwarded so the server can run without its own .env key
-        onEvent,
-        signal,
-      });
-    } catch (error) {
-      if (error?.name === "AbortError" || signal?.aborted) throw error;
-      return callDemoAgent({ text, onEvent, signal });
-    }
+    return callJarvis({
+      baseUrl: settings.jarvisUrl,
+      sessionId,
+      text,
+      onEvent,
+      signal,
+    });
   }
 
   const apiKey = settings?.apiKey?.trim();

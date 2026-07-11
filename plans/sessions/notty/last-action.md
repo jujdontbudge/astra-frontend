@@ -1,65 +1,28 @@
 # Last Action
-**Status:** DONE — implemented the confirmed batch from the whole-UI review, rebuilt, e2e GREEN,
-  behavioral checks GREEN, served at http://127.0.0.1:4280 (vite preview of fresh dist) + opened in Chrome.
-**Verify:** `npm run build` clean; `ASTRA_E2E_URL=http://127.0.0.1:4280 node tests/astra-e2e.mjs` → passed;
-  scripts/review-shots.mjs (9 states) + a focused Playwright pass (tooltip/kicker/reload/persistence/sr-only)
-  all green.
+**Status:** ALL GOAL TASKS COMPLETE. Locally solvable handoff work finished with recorded evidence; only externally blocked connectors, bot production enablement, credential rotation, and user-authorized git publication remain.
 
-## This turn — "review the whole thing and improve on it" → implemented ~18 findings
-Correctness / honesty:
-- **#1 demo honesty**: demo.js tags tool_call `demo:true`; ChatContext.normalizeBlockFromCall carries
-  `demo`; CalendarCard/EmailCard kickers now append " · sample" (verified "Meeting booked · sample").
-  Only shows in true offline demo — gallery/injectDemoAction unaffected, so e2e untouched.
-- **#4 stop/error no longer strands UI**: finishRunningBlocks now resolves calendar/email running blocks
-  to an `error` ("Interrupted before confirmation") so the hidden card surfaces instead of spinning
-  forever; reduceMessage finishes blocks on `stopped` and `error` (was `done` only).
-- **#13 typewriter replay**: Message.useRevealedText only reveals when the message mounted empty
-  (`mountedEmpty` state) — restored/persisted messages render full text (verified data-revealing=false
-  after reload).
-- **#16 persistence hardening**: persist effect strips attachment `dataUrl`s before JSON (avoids ~5MB
-  localStorage quota wipe); load()/healConversation wrapped in try/catch + Array/object guards.
+## Completed this turn (2026-07-11 ~01:40–02:30 ET)
 
-A11y:
-- **#5 rail tooltips**: removed `overflow:hidden` from `.rail-btn` (was clipping the left:38px tooltip);
-  added `.rail-btn:focus-visible .tooltip` + focus outline (verified overflow=visible, opacity=1).
-- **#11 Settings focus trap**: SettingsModal traps Tab, focuses close on open, restores focus on close;
-  effect keyed on `open` only (onClose via ref) so typing in fields never steals focus.
-- **#12 reduced motion**: App wrapped in `<MotionConfig reducedMotion="user">` (CSS media query already
-  neutralizes keyframes).
-- **#21 live region**: Conversation renders an `.sr-only` role=status aria-live announcing streaming;
-  Typing indicator got role=status. Added `.sr-only` utility.
-- **#9 contrast**: `--faint`/`--color-faint` #5a5a62 → #7a7a84 (passes AA on card/detail text).
+- **Physical browser truth checks 4–6 (all passed, real backend :8888):**
+  - `search_restaurants` synthetic query → `integration_unavailable`, `executed: false`, empty results, OpenTable/Resy unconfigured, zero invented slots.
+  - Settings → Test → Calendly shown as its own integration label: "Not connected — Needs CALENDLY ACCESS TOKEN".
+  - Approval reload healing: pending support-chat approval + true page reload → card `data-approval-status="unavailable"`, both buttons disabled, summary "This approval became unavailable after a reload. Nothing ran." (Fix B physically proven; persists across further reloads.)
+- **Excel recalculation contract finished:** physical approval exposed a real `AttributeError` (non-openpyxl workbooks parse with `calculation=None`); fixed via `CalcProperties()` construction; unit test simulates the real case; backend restarted; full physical retest passed (`formula_recalculation_required: true`, read reports 5 `uncalculated_formula_cells` + honest `formula_note`, `fullCalcOnLoad=True` persisted). `/tmp/rovaos` fixtures deleted, directory removed. Backend suite now 149/149.
+- **Fix A verified live in all three outcomes** (completed 2:00/2:04 AM, failed 1:55 AM, cancelled 1:39 AM summaries appeared under preserved prose).
+- **Knowledge engine:** separate 64-char admin token generated straight into ignored 0600 `.env` (never printed); engine restarted under `.venv`; health `ok` + token usable; 401 unauthorized; synthetic ingest → exact citation `[Source: <stored filename>, …]`; delete cleanup verified back to 0 docs/0 chunks.
+- **UI/UX pass (goal task 3):** three parallel audits (a11y, responsive/motion, error-recovery/perf) → implemented in BOTH copies: WS + Anthropic idle watchdogs (no infinite "working" hang), send double-submit ref lock, `memo(Message)` + stable callbacks + `useChatActions` split context, lazy GraphView/SettingsModal chunks (main −25 kB; physically verified in production bundle), contrast/focus-ring/live-region fixes, 44 px touch targets, thread delete + toolbar visible on touch, scrolling markdown tables, faster home→conversation exit, pinned-only auto-scroll, adaptive typewriter, reduced-motion gates, jump-pill overlap fix.
+- **Verification after changes:** canonical + standalone builds, approval protocol, graph unit, isolated e2e — all green in both copies; production bundle spot-checked physically (graph 423 nodes/871 links via lazy chunk; settings modal opens).
+- **Docs updated:** `WORK_COMPLETED.md` (new dated section with evidence tables), `REMAINING_WORK_AND_CLAUDE_HANDOFF.md` (status update section; knowledge row resolved), this file, `findings.md`.
 
-De-clutter (#8) — removed always-on decorative violet:
-- Home MotionIconStrip (Activity/Sparkles/CheckCircle2 on every card) + its CSS; suggestion-chip Zap
-  trail + CSS; ToolChip `.tool-title-icons` + CSS; mode-pill sparkle now static muted (no sparkDrift);
-  deleted the now-unused `@keyframes sparkDrift`. Dropped dead lucide imports in Home/AgentBlocks.
-- **#17 composer honesty**: mode-pill label derived from settings.backend (RovaOS/Anthropic, was
-  hardcoded "RovaOS"); idle-voice flattened (no circle bg / breathe animation → dim static decoration,
-  cursor default) so it stops looking like a live voice button.
+## Not done / intentionally out of scope
 
-Layout / mobile:
-- **#7 jump-latest** now floats centered ABOVE the composer (`bottom: calc(var(--composer-h,104px)+40px)`)
-  instead of overlapping it.
-- **#6 home scroll**: `.home` overflow-y:auto (short viewports no longer clip cards).
-- **#22 overflow**: `.assistant-answer` overflow-wrap:anywhere; `.md table` → block + overflow-x:auto
-  (wide tables scroll in their own box instead of blowing out the column).
-- **#23/#24 mobile**: viewport meta viewport-fit=cover + interactive-widget=resizes-content; safe-area
-  padding on `.home`/`.docked-composer`; 40px min touch targets for icon-round/send/suggestion-chip.
+- Externally blocked connectors stay accurately blocked (M365, QuickBooks OAuth, LinkedIn scope, Calendly tokens, Gusto, ShareFile, WhatsApp, LastPass denied, OTTO, support/restaurant live sends) — require credentials/tenant authority.
+- No git stage/commit/push (requires explicit user authorization).
+- Deferred UI follow-ups documented in WORK_COMPLETED.md (connection banner, graph pinch-zoom, sub-480px tier, etc.).
 
-Files touched: index.html, src/App.jsx, src/components/{Home,Composer,Message,Conversation,AgentBlocks,
-SettingsModal}.jsx, src/context/ChatContext.jsx, src/agent/demo.js, src/styles.css.
+## Processes currently running
 
-## Deferred (not done this turn — lower ROI / need a call)
-- #10 deepen the violet bubble/send gradient for AA (skipped: user explicitly chose that purple; kept
-  bubble==send. It's a contrast note, not a silent override).
-- #2 demo swallows real backend errors; #3 attachments never transmitted to backend; #14 refocus
-  composer after send; #18 chips bypass not-ready flow; #19 thread rename dblclick-only; #20 rail
-  "Preview" duplicates Settings; #15/#25 chip-width polish. All e2e-safe, ready for a follow-up batch.
+- Backend :8888 (restarted this session, serving rebuilt canonical dist with all fixes).
+- Knowledge engine :8080 under `.venv` with admin token active.
 
-## Prior context (still true)
-- Cinematic (assets/cinematic/astra-hero.mp4) v1 rejected ("hot ass"); rebuild awaiting user direction.
-- Higgsfield CLI authed (johansardar77@gmail.com, starter, 246.75 credits).
-- pkg name still "codex-glass-chat-recreation" (rename to astra-frontend before shipping to rovalabs).
-
-> Last updated: 2026-07-05 12:52:39
+> Last updated: 2026-07-11 02:42:10
